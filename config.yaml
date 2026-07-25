@@ -1,0 +1,31 @@
+# DV-score Regression Configuration
+
+# Dataset and model
+dataset: california   # california, synthetic
+model: mlp            # mlp
+
+# Data settings
+target_col: null      # Name of target column in CSV (null for sklearn datasets)
+normalize_y: true     # Normalize targets to [-1, 1]
+
+# Model hyperparameters
+epochs: 200
+lr: 0.001
+optim: ADAM           # SGD, ADAM, Momentum
+scheduler: Cosine     # Cosine, CosineTorch, Step, MultiStep
+regularizer: 0.0005
+batch_size: 128
+
+# DV-score computation
+subsample_n: 1000     # Subsample size for large datasets (null = use all)
+rep_num: 10           # Number of repetitions for stochastic DV-score
+
+# Training settings
+seed: 42
+no_cuda: false
+model_save: false
+test_exp: false
+exp_name: null
+
+# Evaluation
+eval_metric: rmse     # rmse or mae
