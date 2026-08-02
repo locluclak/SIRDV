@@ -20,22 +20,47 @@ def normalize_data(X, y):
     if y_max - y_min > 0:
         y = 2 * (y - y_min) / (y_max - y_min) - 1
     return X, y
+def generate(n, m, p, true_beta_s, true_beta_t, seed = None):
+    """return Xs, Xt, Ys, Yt, Sigma_s, Sigma_t"""
 
+    if seed is not None:
+        np.random.seed(seed)
+
+    Xs = np.random.normal(loc = 0, scale = 1, size = (n, p))
+    Xt = np.random.normal(loc = 0, scale = 1, size = (m, p))
+
+
+    mu_s = Xs.dot(true_beta_s)
+    mu_t = Xt.dot(true_beta_t)
+    # print(true_beta_s, true_beta_t)
+    Ys = mu_s + np.random.normal(loc = 0, scale = 1, size = (n, 1))
+    Yt = mu_t + np.random.normal(loc = 0, scale = 1, size = (m, 1))
+
+    Sigma_s = np.identity(n)
+    Sigma_t = np.identity(m)
+
+    return Xs, Xt, Ys, Yt, Sigma_s, Sigma_t
 
 def compute_pvalue_once(n=30, d=3, fraction=0.5, rng=None):
     """Generate one dataset and return one p-value."""
     if rng is None:
         rng = np.random.RandomState()
 
-    X = rng.randn(n, d)
-    beta = np.zeros(d)
-    y = X @ beta + rng.randn(n)  # null: beta=0, y = noise
+    # X = rng.randn(n, d)
+    # beta = np.zeros(d)
+    
+    # y = X.dot(beta) + rng.randn(n)  # null: beta=0, y = noise
 
-    # X, y = normalize_data(X, y)
-    X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=1)
-
+    # # X, y = normalize_data(X, y)
+    # X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=1)
+    true_beta_t = np.asarray([2]*d).reshape(-1,1)
+    true_beta_v = np.asarray([0]*d).reshape(-1,1)
+    X_tr, X_te, y_tr, y_te, St, Sv = generate(n, 10, d, true_beta_t, true_beta_v,seed=1)
+    print(X_tr.shape, y_tr.shape)
     pval = SI_DV(X_tr, y_tr, Xval=X_te, yval=y_te,
-                 fraction=fraction, jth=0, method="parametric")
+                 fraction=fraction, jth=0, 
+                 zmin=-20., zmax=20,
+                 method="parametric")
     return pval
 
 

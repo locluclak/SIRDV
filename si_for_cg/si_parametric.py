@@ -52,20 +52,34 @@ def parametric_intervals(
 
     wt,rt,ot = cost_params
     for ml, mr, B in list_da_itv:
-        print('DAitv', ml, mr)#, B)
+        # print('DAitv', ml, mr, B)
         z = ml
         while z < mr:
             # adapter_z = SelectionAdapter(adapter.fraction)
-            cost_z = wt + rt*z + ot*z**2
-            selection_z, top_indices_z = adapter.select_with_known_basis(cost_z, B)
+            cost_z = wt + rt*z + ot*(z**2)
+            S_ = adapter.S_.copy()
+            selection_z, top_indices_z = adapter.select_with_known_basis(nt, S_, cost_z, B)
+                        
             selec_itv = sort_conditioning(z,adapter, B,wt, rt, ot, top_indices_z,config)
-            
+            # if -7.22503 <= z < -4:
+            #     T = np.zeros(nt * nv)
+                                
+            #     x_B = np.linalg.inv(adapter.S_[:, B]).dot(adapter.h_)
+            #     T[B] = x_B.flatten()
+                # print('    org_cost', np.sum(cost_z))
+                # print('    mor_cost', cost_z.reshape(-1).dot(T))
+                # print('    selection', selection_z)
+                # print('    old selecitv', selec_itv)
+                # print('    selection', selection_z)
+                # print('    new selecitv', selec_itv)
             selec_itv = interval_intersection(selec_itv, [(ml,mr)])
             for i in selec_itv:
                 l,r = i
                 if l <= z <=r:
                     z = r +config.step
                     break
+            
+            print(selection_z)
             if observed_selection == selection_z:
                 print('correct')
                 final_interval.append((l,r))
@@ -100,11 +114,12 @@ def traditional_parametric_intervals(
 
     final_interval = []
     nt, nv = Xtrain.shape[0], Xval.shape[0]
-    X = np.vstack([Xtrain, Xval])
+    # X = np.vstack([Xtrain, Xval])
     z = config.zmin
 
     DA = []
     while z < config.zmax:
+        print('z',z)
         y_z = a_vec + b_vec*z
         ytrain_z = y_z[:nt].copy().reshape(-1)
         yval_z = y_z[nt:nt+nv].copy().reshape(-1)
@@ -113,7 +128,7 @@ def traditional_parametric_intervals(
         observed_selection_z = adapter_z.select(Xtrain, ytrain_z, Xval, yval_z)
         decomposition_z = replace(decomposition,etaT_y=z) 
         # decomposition_z.etaT_y = z
-        itv, cost = overconditioning_intervals(Xtrain, Xval, decomposition_z,adapter_z,config, onlyDA=True)
+        itv, cost = overconditioning_intervals(Xtrain, Xval, decomposition_z,adapter_z,config, onlyDA=True,z=z)
         # print(itv)
         DA.append(itv)
         # if observed_selection_z == observed_selection:
@@ -122,20 +137,33 @@ def traditional_parametric_intervals(
         z = itv[1]+config.step
     wt,rt,ot = cost
     for ml, mr, B in DA:
-        print('daitv', ml, mr)#, B)
+        print('daitv', ml, mr)
+        print('basis', B)
         z = ml
         while z < mr:
             # adapter_z = SelectionAdapter(adapter.fraction)
+            # print('z',z)
             cost_z = wt + rt*z + ot*z**2
-            selection_z, top_indices_z = adapter.select_with_known_basis(cost_z, B)
+            S_ = adapter.S_.copy()
+            selection_z, top_indices_z = adapter.select_with_known_basis(nt, S_, cost_z, B)
             selec_itv = sort_conditioning(z,adapter, B,wt, rt, ot, top_indices_z,config)
-            
+            # if -7.22503 <= z < -4:
+            #     T = np.zeros(nt * nv)
+                
+            #     x_B = np.linalg.inv(adapter.S_[:, B]).dot(adapter.h_)
+            #     T[B] = x_B.flatten()
+            #     print('    org_cost', np.sum(cost_z))
+            #     print('    old_cost', cost_z.reshape(-1).dot(T))
+            #     print('    selection', selection_z)
+            #     print('    old selecitv', selec_itv)
+            print(' selec',selec_itv)
             selec_itv = interval_intersection(selec_itv, [(ml,mr)])
             for i in selec_itv:
                 l,r = i
                 if l <= z <=r:
                     z = r +config.step
                     break
+            # print(selection_z)
             if observed_selection == selection_z:
                 print('correct')
                 final_interval.append((l,r))
@@ -167,7 +195,8 @@ def find_valid_basis(H, x_nonzero_indices):
 
 
 def parametric_simplex_quadratic(ns, nt, H, h, u, v, w, z_min, z_max):
-
+    H = np.array(H, dtype=float)
+    h = np.array(h, dtype=float)
     u, v, w = np.array(u), np.array(v), np.array(w)
     # print("Shape:", H.shape, h.shape, u.shape, v.shape, w.shape)
     h = h.flatten()
@@ -179,7 +208,10 @@ def parametric_simplex_quadratic(ns, nt, H, h, u, v, w, z_min, z_max):
     # 1. Tìm lời giải ban đầu tại z_min
     
     c_start = u + v * z_min + w * (z_min**2)
-    res = linprog(c_start, A_ub = - np.identity(ns * nt), b_ub = np.zeros((ns * nt, 1)), A_eq=H, b_eq=h, method='simplex',options={'maxiter': 1000000})
+    print('start cost', np.sum(c_start))
+    res = linprog(c_start, A_ub = - np.identity(ns * nt), b_ub = np.zeros((ns * nt, 1)), 
+                           A_eq=H, b_eq=h, method='simplex',
+                           options={'maxiter': 1000000})#,'bland': True})
     # res = linprog(c_start, A_ub = - np.identity(ns * nt), b_ub = np.zeros((ns * nt, 1)), 
     #                 A_eq = H, b_eq = h, method = 'simplex', 
     #                 options={'maxiter': 100000})
@@ -190,8 +222,9 @@ def parametric_simplex_quadratic(ns, nt, H, h, u, v, w, z_min, z_max):
 
     # Xác định các biến cơ sở ban đầu (đảm bảo ma trận vuông và độc lập tuyến tính)
     basis_indices = res.basis 
-
-    while current_z <= z_max + 1e-9:
+    print('start basis',basis_indices)
+    while current_z < z_max:
+        print('new zone')
         B = H[:, basis_indices]
         try:
             B_inv = np.linalg.inv(B)
@@ -226,7 +259,7 @@ def parametric_simplex_quadratic(ns, nt, H, h, u, v, w, z_min, z_max):
                 entering_var = i
 
         # Lưu lại khoảng ổn định
-        results.append((current_z, next_z, np.sort(basis_indices, stable=True)))
+        results.append((current_z, next_z, np.sort(basis_indices)))
 
         if entering_var is None or next_z >= z_max:
             break
@@ -239,12 +272,24 @@ def parametric_simplex_quadratic(ns, nt, H, h, u, v, w, z_min, z_max):
         # Tỷ số Min-ratio để tìm biến rời khỏi cơ sở
         min_ratio = np.inf
         leaving_idx_in_basis = -1
+        leaving_var_id = np.inf
+        
         for i in range(len(d)):
             if d[i] > 1e-9:
                 ratio = x_B[i] / d[i]
+                print(f"ratio {ratio} | min ratio {min_ratio} | index {i}")
+
                 if ratio < min_ratio:
                     min_ratio = ratio
                     leaving_idx_in_basis = i
+                    print(i)
+                    leaving_var_id = basis_indices[i]
+                elif abs(ratio - min_ratio) <= 1e-8:
+                    # tie: prefer smaller actual variable index (Bland's rule)
+                    if basis_indices[i] < leaving_var_id:
+                        leaving_idx_in_basis = i
+                        leaving_var_id = basis_indices[i]
+                        print('choose small index',i)
         
         if leaving_idx_in_basis == -1: # Không tìm được biến rời đi (unbounded)
             break

@@ -20,14 +20,30 @@ def sort_conditioning(
 ) -> list[tuple[float, float]]:
     # print("cp",current_pos)
     S_ = adapter.S_
+    h_= adapter.h_
     S_basis = S_[:,basis_current]
     invSbasis = np.linalg.inv(S_basis)
     # observed_selection = observed_selection.reshape(-1)
     # print(basis_current)
     # print(v_cost)
-    u_scores = -1*np.dot(invSbasis, u_cost[basis_current])
-    v_scores = -1*np.dot(invSbasis, v_cost[basis_current])
-    w_scores = -1*np.dot(invSbasis, w_cost[basis_current])
+    basis_current2 = [0, 16, 23, 28, 34, 41, 52, 64, 70, 80, 88, 92, 106, 111, 118, 121, 134, 136, 
+     145, 151, 159, 167, 178, 182, 187, 190, 209, 215, 223, 238, 247, 259, 265, 267, 275, 278, 
+     285, 286, 293]
+    S_basis2 = S_[:,basis_current2]
+    invSbasis2 = np.linalg.inv(S_basis2)
+    
+    u_cost2 = u_cost[basis_current2]
+    v_cost2 = v_cost[basis_current2]
+    w_cost2 = w_cost[basis_current2]
+
+
+    print('index', top_indices)
+    u_cost = u_cost[basis_current]
+    v_cost = v_cost[basis_current]
+    w_cost = w_cost[basis_current]
+    u_scores = -1*np.dot(invSbasis, u_cost)
+    v_scores = -1*np.dot(invSbasis, v_cost)
+    w_scores = -1*np.dot(invSbasis, w_cost)
 
     u_scores = u_scores[:adapter.nt].copy()
     v_scores = v_scores[:adapter.nt].copy()
@@ -36,7 +52,14 @@ def sort_conditioning(
     u_scores = 2*u_scores - np.sum(u_scores)
     v_scores = 2*v_scores - np.sum(v_scores)
     w_scores = 2*w_scores - np.sum(w_scores)
-    
+    cost1 = (w_cost + v_cost*current_pos + u_cost*current_pos**2)
+
+
+    cost2 = (w_cost2 + v_cost2*current_pos + u_cost2*current_pos**2)
+    print('optimal cost1', cost1.T.dot(np.dot(invSbasis, h_)))
+    print('optimal cost2', cost2.T.dot(np.dot(invSbasis2, h_)))
+
+    # print('score', w_scores + v_scores*current_pos + u_scores*current_pos**2)
 
     topreverse = top_indices[:-1].copy()
     topremovefirst = top_indices[1:].copy()
@@ -55,7 +78,7 @@ def overconditioning_intervals(
     # observed_selection: tuple[int, ...],
     config: SIConfig,
     onlyDA=False,
-    z = 0,
+    z:float = 0,
 ) -> list[tuple[float, float]]:
     """
     Compute selection-condition intervals using the overconditioning method.
@@ -86,10 +109,10 @@ def overconditioning_intervals(
     w_tilde = c_ + Omega_a * Omega_a
     r_tilde = 2*Omega_a * Omega_b 
     o_tilde = Omega_b * Omega_b
-    # print('cost',np.sum(w_tilde[B]+r_tilde[B]*z+o_tilde[B]*z**2))
+    # print('cost oc',np.sum(w_tilde[B]+r_tilde[B]*z+o_tilde[B]*z**2))
 
     # print("cost c_", np.sum(c_))
-    # print("cost", np.sum(w_tilde + r_tilde*decomposition.etaT_y + o_tilde*decomposition.etaT_y))
+    # print("cost", np.sum(w_tilde + r_tilde*decomposition.etaT_y + o_tilde*decomposition.etaT_y**2))
 
     S_ = adapter.S_
     h_ = adapter.h_
@@ -102,18 +125,22 @@ def overconditioning_intervals(
 
 
     OT_interval = solve_quad_list(-o, -r, -w)
-    print("OTinterval", OT_interval)
+    # print("OTinterval", OT_interval)
     curr = decomposition.etaT_y
 
     if onlyDA:
+        if len(OT_interval) > 1:
+            print('SOS')
         for itv in OT_interval:
             l,r = itv
             if l <= curr <=r:
                 return (l,r,B), (w_tilde, r_tilde, o_tilde)
         return None, None
     # print(curr)
-    selection_interval = sort_conditioning(curr, adapter, B, w_tilde, r_tilde, o_tilde,adapter.top_indices,config)
-    # print("selec itv", selection_interval)
+    selection_interval = sort_conditioning(curr, adapter, B, w_tilde, r_tilde, o_tilde,adapter.sorted_indices,config)
+    print('basis B', B)
+    print('OC OT itv', OT_interval)
+    print("OC selec itv", selection_interval)
     intervals = interval_intersection(OT_interval, selection_interval)
     for itv in intervals:
         l,r = itv

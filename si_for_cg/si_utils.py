@@ -80,6 +80,7 @@ def solve_linear_inequality(b, c):
 
 def solve_quadratic_inequality(a, b, c):
     """ ax^2 + bx +c <= 0 """
+    a, b, c = np.round(a, 8), np.round(b, 8), np.round(c, 8)
     if abs(a) < 1e-10:
         a = 0
     if abs(b) < 1e-10:
@@ -89,8 +90,8 @@ def solve_quadratic_inequality(a, b, c):
     if a == 0:
         # print(f"b: {b}")
         if b > 0:
-            # return [(-np.inf, -c / b)]
-            return [(-np.inf, np.around(-c / b, 8))]
+            return [(-np.inf, -c / b)]
+            # return [(-np.inf, np.around(-c / b, 8))]
         elif b == 0:
             # print(f"c: {c}")
             if c <= 0:
@@ -99,7 +100,8 @@ def solve_quadratic_inequality(a, b, c):
                 print('Error bx + c')
                 return []
         else:
-            return [(np.around(-c / b, 8), np.inf)]
+            return [(-c / b, np.inf)]
+            # return [(np.around(-c / b, 8), np.inf)]
     delta = b*b - 4*a*c
     if delta < 0:
         if a < 0:
@@ -111,20 +113,20 @@ def solve_quadratic_inequality(a, b, c):
     x1 = (- b - np.sqrt(delta)) / (2.0*a)
     x2 = (- b + np.sqrt(delta)) / (2.0*a)
 
-    x1 = np.around(x1, 8)
-    x2 = np.around(x2, 8)
+    # x1 = np.around(x1, 8)
+    # x2 = np.around(x2, 8)
     if a < 0:
         return [(-np.inf, x2),(x1, np.inf)]
     return [(x1,x2)]
 def solve_quadratic_roots(a, b, c, current_z, z_max):
-    """Find the smallest real root of a*z^2 + b*z + c = 0 in the interval (current_z, z_max]."""
+    """Tìm nghiệm thực nhỏ nhất của az^2 + bz + c = 0 trong khoảng (current_z, z_max]"""
     eps = 1e-7
     roots = []
     
-    if abs(a) < 1e-10: # Linear: bz + c = 0
-        if abs(b) > 1e-10:
+    if abs(a) < 1e-8: # Tuyến tính: bz + c = 0
+        if abs(b) > 1e-8:
             roots.append(-c / b)
-    else: # Quadratic
+    else: # Bậc hai
         delta = b**2 - 4*a*c
         if delta >= 0:
             sqrt_delta = np.sqrt(delta)
@@ -133,6 +135,23 @@ def solve_quadratic_roots(a, b, c, current_z, z_max):
             
     valid_roots = [r for r in roots if r > current_z + eps and r <= z_max + eps]
     return min(valid_roots) if valid_roots else None
+# def solve_quadratic_roots(a, b, c, current_z, z_max):
+#     """Find the smallest real root of a*z^2 + b*z + c = 0 in the interval (current_z, z_max]."""
+#     eps = 1e-7
+#     roots = []
+    
+#     if abs(a) < 1e-10: # Linear: bz + c = 0
+#         if abs(b) > 1e-10:
+#             roots.append(-c / b)
+#     else: # Quadratic
+#         delta = b**2 - 4*a*c
+#         if delta >= 0:
+#             sqrt_delta = np.sqrt(delta)
+#             roots.append((-b + sqrt_delta) / (2*a))
+#             roots.append((-b - sqrt_delta) / (2*a))
+            
+#     valid_roots = [r for r in roots if r > current_z + eps and r <= z_max + eps]
+#     return min(valid_roots) if valid_roots else None
 
 
 def solve_quad_list(p, q, r):
@@ -144,9 +163,11 @@ def solve_quad_list(p, q, r):
         # print("iteration", pi, qi, ri)
         intervals_i = solve_quadratic_inequality(pi.item(), qi.item(), ri.item())
         if intervals_i is None:
+            print('Error in solving quadratic ineq')
             return []
         intervals = interval_intersection(intervals, intervals_i)
         if not intervals:
+            print('Error intersection')
             return []
     return intervals
 
@@ -160,6 +181,9 @@ def compute_p_value(
     """Compute the two-sided truncated-normal p-value on ``intervals``."""
     if etaT_Sigma_eta <= 0:
         raise ValueError("etaT_Sigma_eta must be positive")
+
+    print('compute_p_value', etaT_y)
+    
     if not intervals:
         return float("nan")
 
@@ -199,7 +223,7 @@ def decompose_y(y: np.ndarray, eta: np.ndarray, Sigma: np.ndarray) -> SIDecompos
         raise ValueError("etaT_Sigma_eta must be positive")
 
     b = Sigma_arr.dot(eta_col) / etaT_Sigma_eta
-    a = (np.identity(y_col.shape[0]) - b.dot(eta_col.T)).dot(y_col)
+    a = (np.eye(y_col.shape[0]) - b.dot(eta_col.T)).dot(y_col)
     etaT_y = eta_col.T.dot(y_col).item()
 
     return SIDecomposition(

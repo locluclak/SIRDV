@@ -47,14 +47,14 @@ class SelectionAdapter:
 
         return list(int(idx) for idx in sorted(self.top_indices))
     
-    def select_with_known_basis(self, cost_vec: np.ndarray, Basis: list[int]) -> list[int]:
+    def select_with_known_basis(self, nt, S_, cost_vec: np.ndarray, Basis: list[int]) -> list[int]:
 
-        S_basis = self.S_[:, Basis]
+        S_basis = S_[:, Basis]
         cost_vec = cost_vec[Basis]
         scores = -1*np.dot(np.linalg.inv(S_basis), cost_vec)
         # print('nt',nt)
         
-        scores = scores[:self.nt]
+        scores = scores[:nt]
         scores = scores.reshape(-1)
         scores = 2*scores - np.sum(scores)
 
@@ -62,7 +62,7 @@ class SelectionAdapter:
         sorted_indices = np.argsort(scores, stable=True)
         top_indices = sorted_indices[-n_keep:]
 
-        return list(int(idx) for idx in sorted(top_indices)), top_indices
+        return list(int(idx) for idx in sorted(top_indices)), sorted_indices
     
 
 def make_eta(Xt: np.ndarray, yt: np.ndarray,
@@ -72,14 +72,18 @@ def make_eta(Xt: np.ndarray, yt: np.ndarray,
     """Make eta vector for selective inference."""
     nt, p = Xt.shape
     nv = Xv.shape[0]
+
     obs_selection = np.asarray(obs_selection, dtype=int)
     Xt_prunned = Xt[obs_selection].copy()
+    
     trainpart = np.linalg.inv(Xt_prunned.T.dot(Xt_prunned)).dot(Xt_prunned.T)
     valpart = np.zeros((p, nv))
     # print(trainpart.shape, valpart.shape)
     ej = np.zeros(p)
     ej[j] = 1
-    eta = (ej.dot(np.hstack((trainpart.dot(np.eye(nt)[obs_selection]), valpart)))).T
+    eta = (ej.dot(np.hstack((trainpart.dot(np.eye(nt)[obs_selection]), 
+                             valpart)))).T
+
     return eta
 
 __all__ = ["SelectionAdapter"]

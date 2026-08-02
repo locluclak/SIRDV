@@ -8,7 +8,7 @@ from .si_overconditioning import overconditioning_intervals
 from .si_parametric import parametric_intervals, traditional_parametric_intervals
 from .si_types import SIConfig, SIResult, SelectionAdapter
 from .si_utils import compute_p_value, decompose_y
-
+from . import param
 
 def selective_inference(
     Xtrain: np.ndarray,
@@ -29,12 +29,17 @@ def selective_inference(
     # observed_selection = adapter.select(Xtrain, ytrain, Xval, yval)
     y = np.concatenate([ytrain, yval])
     decomposition = decompose_y(y, eta, Sigma)
-    
+    # print('check y', np.sum(np.abs(y - (decomposition.a + decomposition.b*decomposition.etaT_y).reshape(-1))))
     if method == "parametric":
         intervals = traditional_parametric_intervals(Xtrain, Xval, decomposition, 
                                          adapter, observed_selection, config,)
+        # print('------------------------------------')
         # print('new',parametric_intervals(Xtrain, Xval, decomposition, 
         #                                        adapter, observed_selection, config,))
+        # nt, nv = Xtrain.shape[0], Xval.shape[0]
+        # S_ = adapter.S_.copy()
+        # intervals = param.parametric(nt, nv, decomposition.a.copy(), decomposition.b.copy(),
+        #                              np.vstack((Xtrain, Xval)), S_, adapter.h_.copy(), observed_selection, adapter.fraction, config)
     elif method == "overconditioning":
         intervals = overconditioning_intervals(Xtrain, Xval, decomposition, 
                                                adapter, config,)

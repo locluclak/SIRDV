@@ -8,15 +8,6 @@ from sklearn.model_selection import train_test_split
 from si_for_cg import SI_DV
 
 
-def normalize_data(X, y):
-    norms = np.linalg.norm(X, axis=1, keepdims=True)
-    X = X / np.where(norms == 0, 1, norms)
-    y_min, y_max = y.min(), y.max()
-    if y_max - y_min > 0:
-        y = 2 * (y - y_min) / (y_max - y_min) - 1
-    return X, y
-
-
 def main():
     ns = [50, 100, 150, 200]
     d = 5
@@ -45,11 +36,10 @@ def main():
                     beta = np.zeros(d)
                     y = X @ beta + rng.randn(n)
 
-                    X, y = normalize_data(X, y)
                     X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2)
 
                     pv = SI_DV(X_tr, y_tr, Xval=X_te, yval=y_te,
-                               fraction=fraction, jth=0, method=method)
+                               fraction=fraction, jth=None, method=method)
 
                     f.write(f"{pv}\n")
                     f.flush()

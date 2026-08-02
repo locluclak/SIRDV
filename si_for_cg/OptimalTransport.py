@@ -65,12 +65,13 @@ def solveOT(ns, nt, S_, h_, X_):
         cost += np.dot(OMEGA , X_[:, [i]]) * np.dot(OMEGA , X_[:, [i]])
         # if i==p-1:
         # print('origin cost c_', np.sum(cost))
-        
+    # print('cost', np.sum(cost))
     # Solve wasserstein distance
     res = linprog(cost, A_ub = - np.identity(ns * nt), b_ub = np.zeros((ns * nt, 1)), 
                         A_eq = S_, b_eq = h_, method = 'simplex', 
-                        options={'maxiter': 100000})
+                        options={'maxiter': 100000})#, 'bland': True})
     # Transport Map
+    # print('OT basis',res.basis)
     Tobs = res.x.reshape((ns,nt))
     gamma = constructGamma(ns, nt, Tobs)
     return {"gamma": gamma, "basis": res.basis, "cost": cost,}

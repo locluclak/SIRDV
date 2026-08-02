@@ -41,10 +41,10 @@ class SelectiveInference:
         Sigma: np.ndarray | None = None,
         jth: int | None = None,
     ) -> "SelectiveInference":
-        Xtrain_arr = np.asarray(Xtrain, dtype=np.float64)
-        ytrain_arr = np.asarray(ytrain, dtype=np.float64).reshape(-1)
-        Xval_arr = np.asarray(Xval, dtype=np.float64)
-        yval_arr = np.asarray(yval, dtype=np.float64).reshape(-1)
+        Xtrain_arr = np.asarray(Xtrain)
+        ytrain_arr = np.asarray(ytrain).reshape(-1)
+        Xval_arr = np.asarray(Xval)
+        yval_arr = np.asarray(yval).reshape(-1)
 
 
         if Xtrain_arr.shape[0] != ytrain_arr.shape[0]:
@@ -52,14 +52,14 @@ class SelectiveInference:
         if Xval_arr.shape[0] != yval_arr.shape[0]:
             raise ValueError("Xval and yval must have the same number of samples")
 
-        Sigma_arr = np.identity(ytrain_arr.shape[0] + yval_arr.shape[0]) if Sigma is None else np.asarray(Sigma, dtype=np.float64)
+        Sigma_arr = np.eye(ytrain_arr.shape[0] + yval_arr.shape[0]) if Sigma is None else np.asarray(Sigma)
 
         # --- Run selection
         adapter = SelectionAdapter(fraction=self.fraction)
         observed_selection = adapter.select(Xtrain_arr, ytrain_arr, Xval_arr, yval_arr)
-        print('check')
-        print(adapter.select_with_known_basis(adapter.cost, adapter.basis))
-        print(observed_selection)
+        # print('check')
+        # print(adapter.select_with_known_basis(adapter.cost, adapter.basis))
+        # print(observed_selection)
         if len(observed_selection) == 0:
             raise ValueError("DV-score selected no samples; cannot choose a tested index")
 
