@@ -11,7 +11,26 @@ from numpy.linalg import lstsq
 from .si_types import SIDecomposition
 
 mp.dps = 500
+def generate(n, m, p, true_beta_s, true_beta_t, seed = None):
+    """return Xs, Xt, Ys, Yt, Sigma_s, Sigma_t"""
 
+    if seed is not None:
+        np.random.seed(seed)
+
+    Xs = np.random.normal(loc = 0, scale = 1, size = (n, p))
+    Xt = np.random.normal(loc = 0, scale = 1, size = (m, p))
+
+
+    mu_s = Xs.dot(true_beta_s)
+    mu_t = Xt.dot(true_beta_t)
+    # print(true_beta_s, true_beta_t)
+    Ys = mu_s + np.random.normal(loc = 0, scale = 1, size = (n, 1))
+    Yt = mu_t + np.random.normal(loc = 0, scale = 1, size = (m, 1))
+
+    Sigma_s = np.identity(n)
+    Sigma_t = np.identity(m)
+
+    return Xs, Xt, Ys, Yt, Sigma_s, Sigma_t
 
 def normalize_selection(selection: Any) -> tuple[int, ...]:
     """Normalize common selection outputs into a comparable tuple."""
@@ -182,7 +201,7 @@ def compute_p_value(
     if etaT_Sigma_eta <= 0:
         raise ValueError("etaT_Sigma_eta must be positive")
 
-    print('compute_p_value', etaT_y)
+    print('etaTy', etaT_y)
     
     if not intervals:
         return float("nan")
@@ -190,7 +209,7 @@ def compute_p_value(
     sigma = np.sqrt(etaT_Sigma_eta)
     denominator = mp.mpf("0")
     numerator = mp.mpf("0")
-    print('compute_p_value', etaT_y)
+    # print('compute_p_value', etaT_y)
     for left, right in intervals:
         cdf_left = mp.ncdf((left - null_mean) / sigma)
         cdf_right = mp.ncdf((right - null_mean) / sigma)

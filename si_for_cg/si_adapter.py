@@ -7,7 +7,30 @@ from dataclasses import dataclass
 import numpy as np
 
 from .lava_function import calc_lava_score
+from .cg_function import calc_cg_score
 
+@dataclass
+class CGSelectionAdapter:
+    """Adapter exposing CG-score as a generic selection algorithm."""
+
+    fraction: float = 0.5
+    sorted_indices: np.ndarray | None = None
+    top_indices: np.ndarray | None = None
+    invH: np.ndarray | None = None
+
+    def select(self, X: np.ndarray, y: np.ndarray) -> tuple[int, ...]:
+        if self.invH is None:
+            scores, H, invH = calc_cg_score(X, y, normalize=False, return_gram=True)
+            self.invH = invH
+        else:
+            invH = self.invH
+            scores = calc_cg_score(X, y, normalize=False, return_gram=False, invH=invH)
+            
+        n_keep = max(1, int(len(scores) * self.fraction))
+        self.sorted_indices = np.argsort(scores)
+        self.top_indices = self.sorted_indices[-n_keep:]
+
+        return tuple(int(idx) for idx in sorted(self.top_indices))
 
 @dataclass
 class SelectionAdapter:
@@ -63,7 +86,24 @@ class SelectionAdapter:
         top_indices = sorted_indices[-n_keep:]
 
         return list(int(idx) for idx in sorted(top_indices)), sorted_indices
+
+
+def make_eta_cg(X: np.ndarray, y: np.ndarray,
+             obs_selection: list[int],
+             j: int) -> np.ndarray:
+    """Make eta vector for selective inference."""
+    n, p = X.shape
+
+    obs_selection = np.asarray(obs_selection, dtype=int)
+    X_prunned = X[obs_selection].copy()
     
+    trainpart = np.linalg.inv(X_prunned.T.dot(X_prunned)).dot(X_prunned.T)
+    # print(trainpart.shape, valpart.shape)
+    ej = np.zeros(p)
+    ej[j] = 1
+    eta = (ej.dot(trainpart.dot(np.eye(n)[obs_selection]))).T
+
+    return eta
 
 def make_eta(Xt: np.ndarray, yt: np.ndarray,
              Xv: np.ndarray, yv: np.ndarray,
@@ -86,4 +126,4 @@ def make_eta(Xt: np.ndarray, yt: np.ndarray,
 
     return eta
 
-__all__ = ["SelectionAdapter"]
+__all__ = ["SelectionAdapter", "CGSelectionAdapter"]

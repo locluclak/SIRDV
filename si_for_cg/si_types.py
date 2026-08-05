@@ -18,10 +18,10 @@ class SelectionAdapter(Protocol):
 @dataclass(frozen=True)
 class SIConfig:
     """Configuration for approximate parametric selective inference."""
-
+    data_valuation: str = 'lava'
     zmin: float = -20.0
     zmax: float = 20.0
-    step: float = 0.000001
+    step: float = 0.00001
     atol: float = 1e-10
 
 

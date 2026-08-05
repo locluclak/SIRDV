@@ -6,14 +6,62 @@ from typing import Any
 
 import numpy as np
 from dataclasses import replace
-from .si_adapter import SelectionAdapter
+from .si_adapter import SelectionAdapter, CGSelectionAdapter
 
 from .si_types import SIConfig, SIDecomposition, SelectionAdapter
-from .si_overconditioning import sort_conditioning, overconditioning_intervals
+from .si_overconditioning import sort_conditioning, overconditioning_intervals, CG_overconditioning_intervals
 from .si_utils import interval_union, normalize_selection, solve_quadratic_roots, interval_intersection
 from . import OptimalTransport
 from scipy.optimize import linprog
 from .si_adapter import SelectionAdapter
+
+def cg_parametric_intervals(
+    X: np.array,
+    decomposition: SIDecomposition,
+    adapter: SelectionAdapter,
+    observed_selection: Any,
+    config: SIConfig,
+) -> list[tuple[float, float]]:
+    if config.step <= 0:
+        raise ValueError("step must be positive")
+    if config.zmin >= config.zmax:
+        raise ValueError("zmin must be smaller than zmax")
+    
+    a_vec = decomposition.a.reshape(-1)
+    b_vec = decomposition.b.reshape(-1)
+
+    final_interval = []
+
+    z = config.zmin
+
+    logs = []
+    print('observed_selection', observed_selection)
+    while z < config.zmax:
+        y_z = (a_vec + b_vec * z)
+        selection_z = adapter.select(X, y_z)
+        interval_z = CG_overconditioning_intervals(X, decomposition, adapter, config)
+        matched = False
+        detected = False
+        for l, r in interval_z:
+            if l <= z <= r:
+                if selection_z == observed_selection:
+                    detected = True
+                    final_interval.append((l, r))
+                z = r + config.step
+                matched = True
+                break
+        logs.append((z, selection_z, detected))
+        
+
+        if not matched:
+            # z fell in a gap between intervals (boundary/float issue) —
+            # don't get stuck, just step forward
+            z += config.step
+    with open("logs.txt", "w") as f:
+        for z_val, sel, detect in logs:
+            f.write(f"z: {z_val:.2f}, selection: {sel} -- {detect}\n")
+    return final_interval
+
 def parametric_intervals(
     Xtrain: np.ndarray,
     Xval: np.ndarray,
@@ -22,7 +70,7 @@ def parametric_intervals(
     observed_selection: Any,
     config: SIConfig,
 ) -> list[tuple[float, float]]:
-    """Approximate the selection region by scanning ``z`` on a fixed grid."""
+    """the selection region by scanning ``z`` on a fixed grid."""
     if config.step <= 0:
         raise ValueError("step must be positive")
     if config.zmin >= config.zmax:

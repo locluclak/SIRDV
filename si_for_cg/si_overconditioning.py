@@ -70,6 +70,57 @@ def sort_conditioning(
     intervals = solve_quad_list(utilde, vtilde, wtilde)
 
     return intervals
+
+def CG_overconditioning_intervals(
+    X: np.ndarray,
+    decomposition: SIDecomposition,
+    adapter: SelectionAdapter,
+    config: SIConfig,
+) -> list[tuple[float, float]]:
+    """
+    Compute selection-condition intervals using the overconditioning method.
+
+    CG_k(z) = (u_k + v_k * z)^2 / d_k is quadratic in z.
+    The sorted order at z=0 must be preserved: CG_{σ(k)}(z) <= CG_{σ(k+1)}(z).
+    This gives n-1 quadratic inequalities whose intersection is the valid z-region.
+    """
+    invH = adapter.invH
+    if invH is None:
+        raise ValueError("adapter.invH is None; call adapter.select() first")
+
+
+
+    a_vec = decomposition.a.reshape(-1)
+    b_vec = decomposition.b.reshape(-1)
+
+
+    # CG_k(z) = (u_k + v_k * z)^2 / d_k
+    d = np.diag(invH)
+    # d = np.clip(d, 1e-8, None)
+
+    u = invH.dot(a_vec)
+    v = invH.dot(b_vec)
+
+    p = v * v / d
+    q = 2.0 * u * v / d
+    r = u * u / d
+
+    # Sort condition: CG_{σ(k)}(z) <= CG_{σ(k+1)}(z) for consecutive pairs
+    sigma = adapter.sorted_indices
+    if sigma is None:
+        raise ValueError("adapter.sorted_indices is None; call adapter.select() first")
+
+    topreverse = sigma[:-1].copy()
+    topremovefirst = sigma[1:].copy()
+    pt = p[topreverse] - p[topremovefirst]
+    qt = q[topreverse] - q[topremovefirst]
+    rt = r[topreverse] - r[topremovefirst]
+    # print('pt', pt)
+    # print('qt', qt)
+    # print('rt', rt)
+    intervals = solve_quad_list(pt, qt, rt)
+
+    return intervals
 def overconditioning_intervals(
     Xtrain: np.ndarray,
     Xval: np.ndarray,
