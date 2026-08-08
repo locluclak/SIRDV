@@ -1,3 +1,26 @@
+**Note**: This package utilizes the scipy package to solve linear programming problems using the simplex method. However, the default scipy package does not provide the set of basic variables in its output. To address this limitation, we slightly modified the package so that it can return the set of basic variables by replacing the two files '_linprog.py' and '_linprog_simplex.py' in scipy.optimize module with our modified files in the folder 'files_to_replace'.
+
+### How to Automatically Replace the Files  
+If Using Anaconda
+- First, activate the target environment:  
+```sh
+conda activate your-env-name
+```
+- Then, run the following command to replace the necessary files:
+
+``` sh
+python replace_scipy_linprog.py --env anaconda --dir files_to_replace
+```
+
+If Using System Python (Non-Anaconda)
+-Run the following command:
+
+```sh
+python replace_scipy_linprog.py --env python --dir files_to_replace
+```
+
+# Old code below, read the DEBUG.md instead.
+
 # CG-DataPruning
 
 Selective Inference for DV-score-based Data Pruning.
