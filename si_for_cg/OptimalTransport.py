@@ -67,9 +67,15 @@ def solveOT(ns, nt, S_, h_, X_):
         # print('origin cost c_', np.sum(cost))
     # print('cost', np.sum(cost))
     # Solve wasserstein distance
-    res = linprog(cost, A_ub = - np.identity(ns * nt), b_ub = np.zeros((ns * nt, 1)), 
-                        A_eq = S_, b_eq = h_, method = 'simplex', 
-                        options={'maxiter': 100000})#, 'bland': True})
+    res = linprog(cost, 
+                #   bounds=(0, None),
+                  A_ub = - np.identity(ns * nt), b_ub = np.zeros((ns * nt, 1)), 
+                        A_eq = S_, 
+                        b_eq = h_, 
+                        method = 'simplex', 
+                        options={'maxiter': 1000000, 
+                                #  'bland': True
+                                 })
     # Transport Map
     # print('OT basis',res.basis)
     Tobs = res.x.reshape((ns,nt))

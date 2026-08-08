@@ -62,6 +62,121 @@ def cg_parametric_intervals(
             f.write(f"z: {z_val:.2f}, selection: {sel} -- {detect}\n")
     return final_interval
 
+def ocwithz_intervals(
+    Xtrain: np.ndarray,
+    Xval: np.ndarray,
+    decomposition: SIDecomposition,
+    adapter: SelectionAdapter,
+    observed_selection: Any,
+    config: SIConfig,
+    z: float = 0,
+) -> list[tuple[float, float]]:
+    """Approximate the selection region by scanning ``z`` on a fixed grid."""
+    if config.step <= 0:
+        raise ValueError("step must be positive")
+    if config.zmin >= config.zmax:
+        raise ValueError("zmin must be smaller than zmax")
+
+    # observed_key = normalize_selection(observed_selection)
+    # intervals: list[tuple[float, float]] = []
+
+    a_vec = decomposition.a.reshape(-1,1)
+    b_vec = decomposition.b.reshape(-1,1)
+
+    final_interval = []
+    nt, nv = Xtrain.shape[0], Xval.shape[0]
+    # X = np.vstack([Xtrain, Xval])
+    # z = config.zmin
+
+    y_z = a_vec + b_vec*z
+    ytrain_z = y_z[:nt].copy().reshape(-1)
+    yval_z = y_z[nt:nt+nv].copy().reshape(-1)
+
+    adapter_z = SelectionAdapter(adapter.fraction)
+    observed_selection_z = adapter_z.select(Xtrain, ytrain_z, Xval, yval_z)
+    decomposition_z = replace(decomposition,etaT_y=z) 
+    # decomposition_z.etaT_y = z
+    itv= overconditioning_intervals(Xtrain, Xval, decomposition_z,adapter_z,config, z=z)
+
+    return itv
+def traditional_parametric_intervals(
+    Xtrain: np.ndarray,
+    Xval: np.ndarray,
+    decomposition: SIDecomposition,
+    adapter: SelectionAdapter,
+    observed_selection: Any,
+    config: SIConfig,
+) -> list[tuple[float, float]]:
+    """Approximate the selection region by scanning ``z`` on a fixed grid."""
+    if config.step <= 0:
+        raise ValueError("step must be positive")
+    if config.zmin >= config.zmax:
+        raise ValueError("zmin must be smaller than zmax")
+
+    # observed_key = normalize_selection(observed_selection)
+    # intervals: list[tuple[float, float]] = []
+
+    a_vec = decomposition.a.reshape(-1,1)
+    b_vec = decomposition.b.reshape(-1,1)
+
+    final_interval = []
+    nt, nv = Xtrain.shape[0], Xval.shape[0]
+    # X = np.vstack([Xtrain, Xval])
+    z = config.zmin
+    etaT_y = decomposition.etaT_y
+    DA = []
+    while z < config.zmax:
+        # print('z',z)
+        y_z = a_vec + b_vec*z
+        ytrain_z = y_z[:nt].copy().reshape(-1)
+        yval_z = y_z[nt:nt+nv].copy().reshape(-1)
+
+        adapter_z = SelectionAdapter(adapter.fraction)
+        observed_selection_z = adapter_z.select(Xtrain, ytrain_z, Xval, yval_z)
+        decomposition_z = replace(decomposition,etaT_y=z) 
+        # decomposition_z.etaT_y = z
+        itv, cost = overconditioning_intervals(Xtrain, Xval, decomposition_z,adapter_z,config, onlyDA=True,z=z)
+        # print(itv)
+        DA.append(itv)
+        z = itv[1]+config.step
+
+
+    wt,rt,ot = cost
+    for ml, mr, B in DA:
+        print('daitv', ml, mr)
+        print('basis', B)
+        z = ml + config.step
+        while z < mr:
+            # adapter_z = SelectionAdapter(adapter.fraction)
+            print('z',z)
+            cost_z = wt + rt*z + ot*z**2
+            S_ = adapter.S_.copy()
+            selection_z, top_indices_z = adapter.select_with_known_basis(nt, S_, cost_z, B)
+            selec_itv = sort_conditioning(z,adapter, B,wt, rt, ot, top_indices_z,config)
+            if 0 <= z < 2:
+            #     T = np.zeros(nt * nv)
+                
+            #     x_B = np.linalg.inv(adapter.S_[:, B]).dot(adapter.h_)
+            #     T[B] = x_B.flatten()
+                print('    org_cost', np.sum(cost_z))
+                # print('    old_cost', cost_z.reshape(-1).dot(T))
+                print('    selection', selection_z)
+                print('    old selecitv', selec_itv)
+            # print(' selec',selec_itv)
+            selec_itv = interval_intersection(selec_itv, [(ml,mr)])
+            for i in selec_itv:
+                l,r = i
+                if l <= z <=r:
+                    z = r +config.step
+                    break
+            # print(selection_z)
+            if observed_selection == selection_z:
+                print('correct')
+                final_interval.append((l,r))
+            # print(itv)
+            
+    return final_interval
+
 def parametric_intervals(
     Xtrain: np.ndarray,
     Xval: np.ndarray,
@@ -101,8 +216,9 @@ def parametric_intervals(
     wt,rt,ot = cost_params
     for ml, mr, B in list_da_itv:
         # print('DAitv', ml, mr, B)
-        z = ml
+        z = ml + config.step
         while z < mr:
+            print(z)
             # adapter_z = SelectionAdapter(adapter.fraction)
             cost_z = wt + rt*z + ot*(z**2)
             S_ = adapter.S_.copy()
@@ -119,18 +235,13 @@ def parametric_intervals(
                 # print('    selection', selection_z)
                 # print('    old selecitv', selec_itv)
                 # print('    selection', selection_z)
-                # print('    new selecitv', selec_itv)
-            selec_itv = interval_intersection(selec_itv, [(ml,mr)])
-            for i in selec_itv:
-                l,r = i
-                if l <= z <=r:
-                    z = r +config.step
-                    break
+            over = interval_intersection(selec_itv, [(ml,mr)])
+            z = over[-1][1] + config.step
             
-            print(selection_z)
+            # print(selection_z)
             if observed_selection == selection_z:
                 print('correct')
-                final_interval.append((l,r))
+                final_interval.append(over)
 
             # print('new',z)
 
@@ -139,91 +250,6 @@ def parametric_intervals(
             
     return final_interval
     # return intervals
-
-def traditional_parametric_intervals(
-    Xtrain: np.ndarray,
-    Xval: np.ndarray,
-    decomposition: SIDecomposition,
-    adapter: SelectionAdapter,
-    observed_selection: Any,
-    config: SIConfig,
-) -> list[tuple[float, float]]:
-    """Approximate the selection region by scanning ``z`` on a fixed grid."""
-    if config.step <= 0:
-        raise ValueError("step must be positive")
-    if config.zmin >= config.zmax:
-        raise ValueError("zmin must be smaller than zmax")
-
-    # observed_key = normalize_selection(observed_selection)
-    # intervals: list[tuple[float, float]] = []
-
-    a_vec = decomposition.a.reshape(-1,1)
-    b_vec = decomposition.b.reshape(-1,1)
-
-    final_interval = []
-    nt, nv = Xtrain.shape[0], Xval.shape[0]
-    # X = np.vstack([Xtrain, Xval])
-    z = config.zmin
-
-    DA = []
-    while z < config.zmax:
-        print('z',z)
-        y_z = a_vec + b_vec*z
-        ytrain_z = y_z[:nt].copy().reshape(-1)
-        yval_z = y_z[nt:nt+nv].copy().reshape(-1)
-
-        adapter_z = SelectionAdapter(adapter.fraction)
-        observed_selection_z = adapter_z.select(Xtrain, ytrain_z, Xval, yval_z)
-        decomposition_z = replace(decomposition,etaT_y=z) 
-        # decomposition_z.etaT_y = z
-        itv, cost = overconditioning_intervals(Xtrain, Xval, decomposition_z,adapter_z,config, onlyDA=True,z=z)
-        # print(itv)
-        DA.append(itv)
-        # if observed_selection_z == observed_selection:
-        #     final_interval.extend(itv)
-        # print(itv)
-        z = itv[1]+config.step
-    wt,rt,ot = cost
-    for ml, mr, B in DA:
-        print('daitv', ml, mr)
-        print('basis', B)
-        z = ml
-        while z < mr:
-            # adapter_z = SelectionAdapter(adapter.fraction)
-            # print('z',z)
-            cost_z = wt + rt*z + ot*z**2
-            S_ = adapter.S_.copy()
-            selection_z, top_indices_z = adapter.select_with_known_basis(nt, S_, cost_z, B)
-            selec_itv = sort_conditioning(z,adapter, B,wt, rt, ot, top_indices_z,config)
-            # if -7.22503 <= z < -4:
-            #     T = np.zeros(nt * nv)
-                
-            #     x_B = np.linalg.inv(adapter.S_[:, B]).dot(adapter.h_)
-            #     T[B] = x_B.flatten()
-            #     print('    org_cost', np.sum(cost_z))
-            #     print('    old_cost', cost_z.reshape(-1).dot(T))
-            #     print('    selection', selection_z)
-            #     print('    old selecitv', selec_itv)
-            print(' selec',selec_itv)
-            selec_itv = interval_intersection(selec_itv, [(ml,mr)])
-            for i in selec_itv:
-                l,r = i
-                if l <= z <=r:
-                    z = r +config.step
-                    break
-            # print(selection_z)
-            if observed_selection == selection_z:
-                print('correct')
-                final_interval.append((l,r))
-            # print(itv)
-            
-            # z = itv[0][1] + config.step
-            # print('old',z)
-
-            
-
-            
-    return final_interval
 
 def find_valid_basis(H, x_nonzero_indices):
     """Tìm một tập chỉ số sao cho ma trận H[:, basis] là khả nghịch (Full Rank)"""
@@ -256,10 +282,12 @@ def parametric_simplex_quadratic(ns, nt, H, h, u, v, w, z_min, z_max):
     # 1. Tìm lời giải ban đầu tại z_min
     
     c_start = u + v * z_min + w * (z_min**2)
-    print('start cost', np.sum(c_start))
-    res = linprog(c_start, A_ub = - np.identity(ns * nt), b_ub = np.zeros((ns * nt, 1)), 
+    # print('start cost', np.sum(c_start))
+    res = linprog(c_start, 
+                #   A_ub = - np.identity(ns * nt), b_ub = np.zeros((ns * nt, 1)), 
+                        bounds=(0, None),
                            A_eq=H, b_eq=h, method='simplex',
-                           options={'maxiter': 1000000})#,'bland': True})
+                           options={'maxiter': 1000000,'bland': True})
     # res = linprog(c_start, A_ub = - np.identity(ns * nt), b_ub = np.zeros((ns * nt, 1)), 
     #                 A_eq = H, b_eq = h, method = 'simplex', 
     #                 options={'maxiter': 100000})
@@ -270,9 +298,9 @@ def parametric_simplex_quadratic(ns, nt, H, h, u, v, w, z_min, z_max):
 
     # Xác định các biến cơ sở ban đầu (đảm bảo ma trận vuông và độc lập tuyến tính)
     basis_indices = res.basis 
-    print('start basis',basis_indices)
+    # print('start basis',basis_indices)
     while current_z < z_max:
-        print('new zone')
+        # print('new zone')
         B = H[:, basis_indices]
         try:
             B_inv = np.linalg.inv(B)

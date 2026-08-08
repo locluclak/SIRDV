@@ -53,14 +53,16 @@ def compute_pvalue_once(n=30, d=3, fraction=0.5, rng=None):
 
     # # X, y = normalize_data(X, y)
     # X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=1)
-    true_beta_t = np.asarray([2]*d).reshape(-1,1)
+    true_beta_t = np.asarray([0]*d).reshape(-1,1)
     true_beta_v = np.asarray([0]*d).reshape(-1,1)
-    X_tr, X_te, y_tr, y_te, St, Sv = generate(n, 10, d, true_beta_t, true_beta_v,seed=1)
+    X_tr, X_te, y_tr, y_te, St, Sv = generate(n, 10, d, true_beta_t, true_beta_v,seed=2)
     print(X_tr.shape, y_tr.shape)
     pval = SI_DV(X_tr, y_tr, Xval=X_te, yval=y_te,
                  fraction=fraction, jth=0, 
                  zmin=-20., zmax=20,
-                 method="parametric")
+                #  method="parametric",
+                 method="overconditioning"
+                 )
     return pval
 
 

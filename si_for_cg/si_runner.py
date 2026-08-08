@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from .si_overconditioning import CG_overconditioning_intervals, overconditioning_intervals
-from .si_parametric import parametric_intervals, traditional_parametric_intervals, cg_parametric_intervals
+from .si_parametric import parametric_intervals, traditional_parametric_intervals, cg_parametric_intervals, ocwithz_intervals
 from .si_types import SIConfig, SIResult, SelectionAdapter
 from .si_utils import compute_p_value, decompose_y
 from . import param
@@ -36,8 +36,8 @@ def selective_inference(
             intervals = traditional_parametric_intervals(Xtrain, Xval, decomposition, 
                                             adapter, observed_selection, config,)
             # print('------------------------------------')
-            # print('new',parametric_intervals(Xtrain, Xval, decomposition, 
-            #                                        adapter, observed_selection, config,))
+            # intervals = parametric_intervals(Xtrain, Xval, decomposition, 
+            #                                        adapter, observed_selection, config,)
             # nt, nv = Xtrain.shape[0], Xval.shape[0]
             # S_ = adapter.S_.copy()
             # intervals = param.parametric(nt, nv, decomposition.a.copy(), decomposition.b.copy(),
@@ -46,6 +46,10 @@ def selective_inference(
 
             intervals = overconditioning_intervals(Xtrain, Xval, decomposition, 
                                                 adapter, config,)
+            print('oc original', intervals)
+            print()
+            print('oc with specific z', ocwithz_intervals(Xtrain, Xval, decomposition, 
+                                            adapter, observed_selection, config,z=0.28082)) # 0.28083
         else:
             raise ValueError("method must be 'parametric' or 'overconditioning'")
     if config.data_valuation == 'cg-score':

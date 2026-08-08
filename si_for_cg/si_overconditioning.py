@@ -26,9 +26,7 @@ def sort_conditioning(
     # observed_selection = observed_selection.reshape(-1)
     # print(basis_current)
     # print(v_cost)
-    basis_current2 = [0, 16, 23, 28, 34, 41, 52, 64, 70, 80, 88, 92, 106, 111, 118, 121, 134, 136, 
-     145, 151, 159, 167, 178, 182, 187, 190, 209, 215, 223, 238, 247, 259, 265, 267, 275, 278, 
-     285, 286, 293]
+    basis_current2 = [9, 11, 27, 30, 32, 46, 50, 54, 64, 74, 79, 86, 88, 93, 97, 109, 112, 121, 122, 127, 130, 143, 154, 163, 174, 176, 185, 190, 203, 211, 227, 232, 248, 251, 268, 270, 275, 286, 295]
     S_basis2 = S_[:,basis_current2]
     invSbasis2 = np.linalg.inv(S_basis2)
     
@@ -37,7 +35,7 @@ def sort_conditioning(
     w_cost2 = w_cost[basis_current2]
 
 
-    print('index', top_indices)
+    # print('index', top_indices)
     u_cost = u_cost[basis_current]
     v_cost = v_cost[basis_current]
     w_cost = w_cost[basis_current]
@@ -160,6 +158,8 @@ def overconditioning_intervals(
     w_tilde = c_ + Omega_a * Omega_a
     r_tilde = 2*Omega_a * Omega_b 
     o_tilde = Omega_b * Omega_b
+
+    print('wt rt ot', np.sum(np.abs(w_tilde)), np.sum(np.abs(r_tilde)), np.sum(np.abs(o_tilde)))
     # print('cost oc',np.sum(w_tilde[B]+r_tilde[B]*z+o_tilde[B]*z**2))
 
     # print("cost c_", np.sum(c_))
@@ -174,6 +174,7 @@ def overconditioning_intervals(
     r = (r_tilde[Bc, :].T - r_tilde[B, :].T.dot(S_B_invS_Bc)).T
     o = (o_tilde[Bc, :].T - o_tilde[B, :].T.dot(S_B_invS_Bc)).T
 
+    print('w r o', np.sum(np.abs(w)), np.sum(np.abs(r)), np.sum(np.abs(o)))
 
     OT_interval = solve_quad_list(-o, -r, -w)
     # print("OTinterval", OT_interval)

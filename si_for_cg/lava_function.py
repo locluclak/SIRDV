@@ -46,8 +46,8 @@ def calc_lava_score(Xtrain: np.ndarray, ytrain: np.ndarray,
     S_basis = S_[:, Basis].copy()
     # print("cost lava",np.sum(cost_vec))
     cost_vec = cost[Basis].copy()
-    print("-- cost lava",np.sum(cost_vec))
-    print("-- basis", Basis)
+    # print("-- cost lava",np.sum(cost_vec))
+    # print("-- basis", Basis)
     scores = -1*np.dot(np.linalg.inv(S_basis), cost_vec)
     # print('nt',nt)
 

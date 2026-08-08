@@ -99,12 +99,12 @@ def solve_linear_inequality(b, c):
 
 def solve_quadratic_inequality(a, b, c):
     """ ax^2 + bx +c <= 0 """
-    a, b, c = np.round(a, 8), np.round(b, 8), np.round(c, 8)
-    if abs(a) < 1e-10:
+    # a, b, c = np.round(a, 8), np.round(b, 8), np.round(c, 8)
+    if abs(a) < 1e-12:
         a = 0
-    if abs(b) < 1e-10:
+    if abs(b) < 1e-12:
         b = 0
-    if abs(c) < 1e-10:
+    if abs(c) < 1e-12:
         c = 0
     if a == 0:
         # print(f"b: {b}")
