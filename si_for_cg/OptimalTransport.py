@@ -100,8 +100,8 @@ def solveOT(ns, nt, S_, h_, X_, basis_hint=None):
                   b_eq=h_,
                   method='simplex',
                   options={'maxiter': 1_000_000,
-                           'bland': True,
-                           'presolve': False
+                        #    'bland': True,
+                        #    'presolve': False
                            })
     if not res.success:
         raise RuntimeError(f"Optimal transport LP failed: {res.message}")

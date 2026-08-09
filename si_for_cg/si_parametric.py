@@ -174,7 +174,7 @@ def traditional_parametric_intervals(
 
     wt,rt,ot = cost
     for ml, mr, B in DA:
-        # print('daitv', ml, mr)
+        print('daitv', ml, mr)
         # print('basis', B)
         z = ml + config.step
         while z < mr:
@@ -202,7 +202,7 @@ def traditional_parametric_intervals(
                     break
             # print(selection_z)
             if observed_selection == selection_z:
-                print('correct')
+                # print('correct')
                 final_interval.append((l,r))
             # print(itv)
     print('final interval after', final_interval)
@@ -366,7 +366,7 @@ def parametric_intervals(
     list_da_itv = list(reversed(left_path)) + right_path
 
     for ml, mr, B in list_da_itv:
-        # print('DAitv', np.round(ml,4), np.round(mr,4), B)
+        print('DAitv', np.round(ml,4), np.round(mr,4), B)
         z = ml + config.step
         while z < mr:
             # print(z)
@@ -393,7 +393,7 @@ def parametric_intervals(
             
             # print(selection_z)
             if observed_selection == selection_z:
-                print('correct')
+                # print('correct')
                 final_interval.extend(over)
 
             # print('new',z)
