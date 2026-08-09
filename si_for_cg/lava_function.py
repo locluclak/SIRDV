@@ -4,7 +4,8 @@ from . import OptimalTransport
 
 
 def calc_lava_score(Xtrain: np.ndarray, ytrain: np.ndarray,
-                    Xval: np.ndarray, yval: np.ndarray, return_complement = False)  -> np.ndarray:
+                    Xval: np.ndarray, yval: np.ndarray, return_complement = False,
+                    basis_hint=None)  -> np.ndarray:
     """
     Compute DV-score for the whole training set
 
@@ -36,7 +37,7 @@ def calc_lava_score(Xtrain: np.ndarray, ytrain: np.ndarray,
     h_ = h[:-1].copy()
     
     # Gamma drives source data to target data 
-    OTresult = OptimalTransport.solveOT(nt, nv, S_, h_, XtXv_)
+    OTresult = OptimalTransport.solveOT(nt, nv, S_, h_, XtXv_, basis_hint=basis_hint)
     # GAMMA = OTresult['gamma']
     Basis = OTresult['basis']
     cost = OTresult['cost']
@@ -48,7 +49,7 @@ def calc_lava_score(Xtrain: np.ndarray, ytrain: np.ndarray,
     cost_vec = cost[Basis].copy()
     # print("-- cost lava",np.sum(cost_vec))
     # print("-- basis", Basis)
-    scores = -1*np.dot(np.linalg.inv(S_basis), cost_vec)
+    scores = -1*np.dot(np.linalg.inv(S_basis.T), cost_vec)
     # print('nt',nt)
 
     scores = scores[:nt].copy()
@@ -67,4 +68,3 @@ def calc_lava_score(Xtrain: np.ndarray, ytrain: np.ndarray,
     
     return scores
     
-

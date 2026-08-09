@@ -35,9 +35,12 @@ def selective_inference(
         if method == "parametric":
             intervals = traditional_parametric_intervals(Xtrain, Xval, decomposition, 
                                             adapter, observed_selection, config,)
-            # print('------------------------------------')
-            # intervals = parametric_intervals(Xtrain, Xval, decomposition, 
-            #                                        adapter, observed_selection, config,)
+            print('interval traditional', intervals)
+            print('------------------------------------')
+            intervals = parametric_intervals(Xtrain, Xval, decomposition, 
+                                                   adapter, observed_selection, config,)
+            print('interval basis tracking', intervals)
+
             # nt, nv = Xtrain.shape[0], Xval.shape[0]
             # S_ = adapter.S_.copy()
             # intervals = param.parametric(nt, nv, decomposition.a.copy(), decomposition.b.copy(),
@@ -64,7 +67,7 @@ def selective_inference(
         else:
             raise ValueError("method must be 'parametric' or 'overconditioning'")
     # intervals = [(-np.inf, np.inf)]
-    # print('Final interval',intervals)
+    print('\n\nFinal interval',intervals)
     p_value = compute_p_value(intervals, 
                               decomposition.etaT_y, decomposition.etaT_Sigma_eta, 
                               null_mean=null_mean, 

@@ -5,9 +5,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import numpy as np
-from sklearn.model_selection import train_test_split
-from scipy.stats import kstest, uniform
-import matplotlib.pyplot as plt
 
 from si_for_cg import SI_DV
 
@@ -41,7 +38,7 @@ def generate(n, m, p, true_beta_s, true_beta_t, seed = None):
 
     return Xs, Xt, Ys, Yt, Sigma_s, Sigma_t
 
-def compute_pvalue_once(n=30, d=3, fraction=0.5, rng=None):
+def compute_pvalue_once(n=50, d=2, fraction=0.5, rng=None):
     """Generate one dataset and return one p-value."""
     if rng is None:
         rng = np.random.RandomState()
@@ -60,8 +57,8 @@ def compute_pvalue_once(n=30, d=3, fraction=0.5, rng=None):
     pval = SI_DV(X_tr, y_tr, Xval=X_te, yval=y_te,
                  fraction=fraction, jth=0, 
                  zmin=-20., zmax=20,
-                #  method="parametric",
-                 method="overconditioning"
+                 method="parametric",
+                #  method="overconditioning"
                  )
     return pval
 

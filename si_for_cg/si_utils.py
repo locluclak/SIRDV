@@ -206,6 +206,9 @@ def compute_p_value(
     if not intervals:
         return float("nan")
 
+    if not any(left <= etaT_y <= right for left, right in intervals):
+        raise ValueError("Selection intervals must contain the observed etaT_y")
+
     sigma = np.sqrt(etaT_Sigma_eta)
     denominator = mp.mpf("0")
     numerator = mp.mpf("0")

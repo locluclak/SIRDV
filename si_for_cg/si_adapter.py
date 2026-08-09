@@ -50,8 +50,11 @@ class SelectionAdapter:
     yval: np.ndarray | None = None
 
     def select(self, Xtrain: np.ndarray, ytrain: np.ndarray,
-               Xval: np.ndarray, yval: np.ndarray) -> list[int]:
-        scores, complement = calc_lava_score(Xtrain, ytrain, Xval, yval, return_complement=True)
+               Xval: np.ndarray, yval: np.ndarray, basis_hint=None) -> list[int]:
+        scores, complement = calc_lava_score(
+            Xtrain, ytrain, Xval, yval, return_complement=True,
+            basis_hint=basis_hint,
+        )
         self.S_ = complement['S_']
         self.h_ = complement['h_']
         self.basis = complement['Basis']
@@ -74,7 +77,7 @@ class SelectionAdapter:
 
         S_basis = S_[:, Basis]
         cost_vec = cost_vec[Basis]
-        scores = -1*np.dot(np.linalg.inv(S_basis), cost_vec)
+        scores = -1*np.dot(np.linalg.inv(S_basis.T), cost_vec)
         # print('nt',nt)
         
         scores = scores[:nt]

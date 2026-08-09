@@ -22,19 +22,10 @@ def sort_conditioning(
     S_ = adapter.S_
     h_= adapter.h_
     S_basis = S_[:,basis_current]
-    invSbasis = np.linalg.inv(S_basis)
+    invSbasis = np.linalg.inv(S_basis.T)
     # observed_selection = observed_selection.reshape(-1)
     # print(basis_current)
     # print(v_cost)
-    basis_current2 = [9, 11, 27, 30, 32, 46, 50, 54, 64, 74, 79, 86, 88, 93, 97, 109, 112, 121, 122, 127, 130, 143, 154, 163, 174, 176, 185, 190, 203, 211, 227, 232, 248, 251, 268, 270, 275, 286, 295]
-    S_basis2 = S_[:,basis_current2]
-    invSbasis2 = np.linalg.inv(S_basis2)
-    
-    u_cost2 = u_cost[basis_current2]
-    v_cost2 = v_cost[basis_current2]
-    w_cost2 = w_cost[basis_current2]
-
-
     # print('index', top_indices)
     u_cost = u_cost[basis_current]
     v_cost = v_cost[basis_current]
@@ -50,13 +41,6 @@ def sort_conditioning(
     u_scores = 2*u_scores - np.sum(u_scores)
     v_scores = 2*v_scores - np.sum(v_scores)
     w_scores = 2*w_scores - np.sum(w_scores)
-    cost1 = (w_cost + v_cost*current_pos + u_cost*current_pos**2)
-
-
-    cost2 = (w_cost2 + v_cost2*current_pos + u_cost2*current_pos**2)
-    print('optimal cost1', cost1.T.dot(np.dot(invSbasis, h_)))
-    print('optimal cost2', cost2.T.dot(np.dot(invSbasis2, h_)))
-
     # print('score', w_scores + v_scores*current_pos + u_scores*current_pos**2)
 
     topreverse = top_indices[:-1].copy()
@@ -140,7 +124,7 @@ def overconditioning_intervals(
     b_vec = decomposition.b.reshape(-1,1)
 
     B = adapter.basis
-    # print('B', B)
+    # print('basis B', B)
     X = np.vstack([Xtrain, Xval])
     # print('first sample', X[-1])
     nt, nv = Xtrain.shape[0], Xval.shape[0]
@@ -159,7 +143,6 @@ def overconditioning_intervals(
     r_tilde = 2*Omega_a * Omega_b 
     o_tilde = Omega_b * Omega_b
 
-    print('wt rt ot', np.sum(np.abs(w_tilde)), np.sum(np.abs(r_tilde)), np.sum(np.abs(o_tilde)))
     # print('cost oc',np.sum(w_tilde[B]+r_tilde[B]*z+o_tilde[B]*z**2))
 
     # print("cost c_", np.sum(c_))
@@ -174,10 +157,9 @@ def overconditioning_intervals(
     r = (r_tilde[Bc, :].T - r_tilde[B, :].T.dot(S_B_invS_Bc)).T
     o = (o_tilde[Bc, :].T - o_tilde[B, :].T.dot(S_B_invS_Bc)).T
 
-    print('w r o', np.sum(np.abs(w)), np.sum(np.abs(r)), np.sum(np.abs(o)))
 
     OT_interval = solve_quad_list(-o, -r, -w)
-    # print("OTinterval", OT_interval)
+    # print('OC OT itv', OT_interval)
     curr = decomposition.etaT_y
 
     if onlyDA:
@@ -190,9 +172,7 @@ def overconditioning_intervals(
         return None, None
     # print(curr)
     selection_interval = sort_conditioning(curr, adapter, B, w_tilde, r_tilde, o_tilde,adapter.sorted_indices,config)
-    print('basis B', B)
-    print('OC OT itv', OT_interval)
-    print("OC selec itv", selection_interval)
+    # print("OC selec itv", selection_interval)
     intervals = interval_intersection(OT_interval, selection_interval)
     for itv in intervals:
         l,r = itv

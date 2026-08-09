@@ -10,7 +10,8 @@ from .si_adapter import SelectionAdapter, CGSelectionAdapter
 
 from .si_types import SIConfig, SIDecomposition, SelectionAdapter
 from .si_overconditioning import sort_conditioning, overconditioning_intervals, CG_overconditioning_intervals
-from .si_utils import interval_union, normalize_selection, solve_quadratic_roots, interval_intersection
+from .si_utils import (interval_union, normalize_selection, solve_quad_list,
+                       solve_quadratic_roots, interval_intersection)
 from . import OptimalTransport
 from scipy.optimize import linprog
 from .si_adapter import SelectionAdapter
@@ -71,7 +72,7 @@ def ocwithz_intervals(
     config: SIConfig,
     z: float = 0,
 ) -> list[tuple[float, float]]:
-    """Approximate the selection region by scanning ``z`` on a fixed grid."""
+    """Compute the OC interval after re-solving selection at ``z``."""
     if config.step <= 0:
         raise ValueError("step must be positive")
     if config.zmin >= config.zmax:
@@ -82,21 +83,13 @@ def ocwithz_intervals(
 
     a_vec = decomposition.a.reshape(-1,1)
     b_vec = decomposition.b.reshape(-1,1)
-
-    final_interval = []
     nt, nv = Xtrain.shape[0], Xval.shape[0]
-    # X = np.vstack([Xtrain, Xval])
-    # z = config.zmin
-
     y_z = a_vec + b_vec*z
-    ytrain_z = y_z[:nt].copy().reshape(-1)
-    yval_z = y_z[nt:nt+nv].copy().reshape(-1)
-
     adapter_z = SelectionAdapter(adapter.fraction)
-    observed_selection_z = adapter_z.select(Xtrain, ytrain_z, Xval, yval_z)
-    decomposition_z = replace(decomposition,etaT_y=z) 
-    # decomposition_z.etaT_y = z
-    itv= overconditioning_intervals(Xtrain, Xval, decomposition_z,adapter_z,config, z=z)
+    adapter_z.select(Xtrain, y_z[:nt].reshape(-1), Xval, y_z[nt:nt+nv].reshape(-1),
+                     basis_hint=adapter.basis)
+    decomposition_z = replace(decomposition,etaT_y=z)
+    itv = overconditioning_intervals(Xtrain, Xval, decomposition_z, adapter_z, config, z=z)
 
     return itv
 def traditional_parametric_intervals(
@@ -122,8 +115,44 @@ def traditional_parametric_intervals(
     final_interval = []
     nt, nv = Xtrain.shape[0], Xval.shape[0]
     # X = np.vstack([Xtrain, Xval])
-    z = config.zmin
     etaT_y = decomposition.etaT_y
+
+    # The observed point is non-negotiable: the selection region passed to
+    # selective inference must contain it.  A left-to-right walk can skip this
+    # basis under OT degeneracy because optimality regions of alternative
+    # zero-basic bases overlap.  Seed the walk with the basis actually used to
+    # obtain the observed selection.
+    observed_da, observed_cost = overconditioning_intervals(
+        Xtrain, Xval, decomposition, adapter, config, onlyDA=True, z=etaT_y
+    )
+    if observed_da is None:
+        raise RuntimeError("Observed OT basis is not optimal at etaT_y")
+    observed_left, observed_right, observed_basis = observed_da
+    observed_w, observed_r, observed_o = observed_cost
+    observed_cost_at_z = observed_w + observed_r * etaT_y + observed_o * etaT_y**2
+    observed_selection_check, observed_top_indices = adapter.select_with_known_basis(
+        nt, adapter.S_, observed_cost_at_z, observed_basis
+    )
+    if observed_selection_check != observed_selection:
+        raise RuntimeError(
+            "Observed basis does not reproduce the observed selection at etaT_y"
+        )
+    observed_selection_regions = sort_conditioning(
+        etaT_y, adapter, observed_basis, observed_w, observed_r, observed_o,
+        observed_top_indices, config,
+    )
+    observed_regions = interval_intersection(
+        observed_selection_regions, [(observed_left, observed_right)]
+    )
+    observed_regions = [
+        region for region in observed_regions if region[0] <= etaT_y <= region[1]
+    ]
+    if not observed_regions:
+        raise RuntimeError("Observed selection interval does not contain etaT_y")
+    final_interval.extend(observed_regions)
+
+    print('finalinterval at start', final_interval)
+    z = config.zmin
     DA = []
     while z < config.zmax:
         # print('z',z)
@@ -132,7 +161,9 @@ def traditional_parametric_intervals(
         yval_z = y_z[nt:nt+nv].copy().reshape(-1)
 
         adapter_z = SelectionAdapter(adapter.fraction)
-        observed_selection_z = adapter_z.select(Xtrain, ytrain_z, Xval, yval_z)
+        observed_selection_z = adapter_z.select(Xtrain, ytrain_z, Xval, yval_z,
+                                                # basis_hint=adapter.basis
+                                                )
         decomposition_z = replace(decomposition,etaT_y=z) 
         # decomposition_z.etaT_y = z
         itv, cost = overconditioning_intervals(Xtrain, Xval, decomposition_z,adapter_z,config, onlyDA=True,z=z)
@@ -143,25 +174,25 @@ def traditional_parametric_intervals(
 
     wt,rt,ot = cost
     for ml, mr, B in DA:
-        print('daitv', ml, mr)
-        print('basis', B)
+        # print('daitv', ml, mr)
+        # print('basis', B)
         z = ml + config.step
         while z < mr:
             # adapter_z = SelectionAdapter(adapter.fraction)
-            print('z',z)
+            # print('z',z)
             cost_z = wt + rt*z + ot*z**2
             S_ = adapter.S_.copy()
             selection_z, top_indices_z = adapter.select_with_known_basis(nt, S_, cost_z, B)
             selec_itv = sort_conditioning(z,adapter, B,wt, rt, ot, top_indices_z,config)
-            if 0 <= z < 2:
-            #     T = np.zeros(nt * nv)
+            # if 0 <= z < 2:
+            # #     T = np.zeros(nt * nv)
                 
-            #     x_B = np.linalg.inv(adapter.S_[:, B]).dot(adapter.h_)
-            #     T[B] = x_B.flatten()
-                print('    org_cost', np.sum(cost_z))
-                # print('    old_cost', cost_z.reshape(-1).dot(T))
-                print('    selection', selection_z)
-                print('    old selecitv', selec_itv)
+            # #     x_B = np.linalg.inv(adapter.S_[:, B]).dot(adapter.h_)
+            # #     T[B] = x_B.flatten()
+            #     print('    org_cost', np.sum(cost_z))
+            #     # print('    old_cost', cost_z.reshape(-1).dot(T))
+            #     print('    selection', selection_z)
+            #     print('    old selecitv', selec_itv)
             # print(' selec',selec_itv)
             selec_itv = interval_intersection(selec_itv, [(ml,mr)])
             for i in selec_itv:
@@ -174,8 +205,111 @@ def traditional_parametric_intervals(
                 print('correct')
                 final_interval.append((l,r))
             # print(itv)
-            
+    print('final interval after', final_interval)
+    final_interval = interval_union(final_interval)
+    if not any(left <= etaT_y <= right for left, right in final_interval):
+        raise RuntimeError("Parametric selection region does not contain etaT_y")
     return final_interval
+
+def _basis_optimal_region(
+    H: np.ndarray,
+    u: np.ndarray,
+    v: np.ndarray,
+    w: np.ndarray,
+    basis: np.ndarray,
+    z: float,
+) -> tuple[float, float]:
+    """Return the reduced-cost region of ``basis`` containing ``z``."""
+    basis = np.asarray(basis, dtype=int)
+    B_inv = np.linalg.inv(H[:, basis])
+    pi_u = u[basis].dot(B_inv)
+    pi_v = v[basis].dot(B_inv)
+    pi_w = w[basis].dot(B_inv)
+    rc_u = u - pi_u.dot(H)
+    rc_v = v - pi_v.dot(H)
+    rc_w = w - pi_w.dot(H)
+    # Reduced costs must be non-negative. ``solve_quad_list`` solves <= 0.
+    regions = solve_quad_list(-rc_w, -rc_v, -rc_u)
+    tol = 1e-8
+    containing = [(left, right) for left, right in regions
+                  if left - tol <= z <= right + tol]
+    if not containing:
+        raise RuntimeError("Current basis is not optimal at the parametric point")
+    return containing[0]
+
+
+def _pivot_basis(
+    H: np.ndarray,
+    h: np.ndarray,
+    u: np.ndarray,
+    v: np.ndarray,
+    w: np.ndarray,
+    basis: np.ndarray,
+    boundary: float,
+    direction: int,
+) -> np.ndarray:
+    """Perform the deterministic simplex pivot immediately beyond a boundary."""
+    basis = np.asarray(basis, dtype=int).copy()
+    B_inv = np.linalg.inv(H[:, basis])
+    rc_u = u - u[basis].dot(B_inv).dot(H)
+    rc_v = v - v[basis].dot(B_inv).dot(H)
+    rc_w = w - w[basis].dot(B_inv).dot(H)
+
+    # A small displacement identifies reduced costs that become negative on
+    # the requested side without changing the LP at a regular breakpoint.
+    delta = max(1e-7, abs(boundary) * 1e-8)
+    probe = boundary + direction * delta
+    reduced_probe = rc_u + rc_v * probe + rc_w * probe**2
+    candidates = np.flatnonzero(reduced_probe < -1e-9)
+    candidates = [int(index) for index in candidates if index not in basis]
+    if not candidates:
+        raise RuntimeError("No entering variable found beyond parametric boundary")
+    entering = min(candidates)  # Bland tie-break
+
+    direction_vector = B_inv.dot(H[:, entering])
+    x_basic = B_inv.dot(h)
+    eligible = np.flatnonzero(direction_vector > 1e-9)
+    if eligible.size == 0:
+        raise RuntimeError("Parametric LP became unbounded during pivot")
+    ratios = x_basic[eligible] / direction_vector[eligible]
+    min_ratio = np.min(ratios)
+    tied = eligible[np.isclose(ratios, min_ratio, atol=1e-9, rtol=1e-9)]
+    leaving_row = min(tied, key=lambda row: basis[int(row)])
+    basis[int(leaving_row)] = entering
+    return np.sort(basis)
+
+
+def trace_parametric_bases(
+    H: np.ndarray,
+    h: np.ndarray,
+    u: np.ndarray,
+    v: np.ndarray,
+    w: np.ndarray,
+    initial_z: float,
+    initial_basis: np.ndarray,
+    z_bound: float,
+    direction: int,
+) -> list[tuple[float, float, np.ndarray]]:
+    """Trace one side of a quadratic-cost simplex path from the observation."""
+    if direction not in (-1, 1):
+        raise ValueError("direction must be -1 or 1")
+    z = float(initial_z)
+    basis = np.asarray(initial_basis, dtype=int).copy()
+    result: list[tuple[float, float, np.ndarray]] = []
+
+    while (direction > 0 and z < z_bound) or (direction < 0 and z > z_bound):
+        left, right = _basis_optimal_region(H, u, v, w, basis, z)
+        left, right = max(left, min(initial_z, z_bound)), min(right, max(initial_z, z_bound))
+        result.append((left, right, basis.copy()))
+        boundary = right if direction > 0 else left
+        if (direction > 0 and boundary >= z_bound - 1e-10) or \
+           (direction < 0 and boundary <= z_bound + 1e-10):
+            break
+        basis = _pivot_basis(H, h, u, v, w, basis, boundary, direction)
+        z = boundary + direction * max(1e-7, abs(boundary) * 1e-8)
+
+    return result
+
 
 def parametric_intervals(
     Xtrain: np.ndarray,
@@ -209,16 +343,33 @@ def parametric_intervals(
 
     S_ = adapter.S_.copy()
     h_ = adapter.h_.copy()
-    DA_result = compute_DA_intervals(nt, nv, a_vec, b_vec, c_, S_, h_, 
-                                       m_min=config.zmin, m_max=config.zmax)
-    list_da_itv, cost_params = DA_result["intervals"], DA_result["cost_params"]
+    Omega_a = OMEGA.dot(a_vec)
+    Omega_b = OMEGA.dot(b_vec)
+    wt = c_ + Omega_a * Omega_a
+    rt = 2 * Omega_a * Omega_b
+    ot = Omega_b * Omega_b
+    cost_params = (wt, rt, ot)
 
-    wt,rt,ot = cost_params
+    # The initial basis must be the basis that produced the observed
+    # selection.  Starting independently at zmin selects a different valid
+    # degenerate basis at etaT_y and makes the observed event disappear.
+    z_obs = decomposition.etaT_y
+    right_path = trace_parametric_bases(
+        S_, h_.reshape(-1), wt.reshape(-1), rt.reshape(-1), ot.reshape(-1),
+        z_obs, adapter.basis, config.zmax, direction=1,
+    )
+    left_path = trace_parametric_bases(
+        S_, h_.reshape(-1), wt.reshape(-1), rt.reshape(-1), ot.reshape(-1),
+        z_obs, adapter.basis, config.zmin, direction=-1,
+    )
+    # Both paths contain the observed basis region; retain it once.
+    list_da_itv = list(reversed(left_path)) + right_path
+
     for ml, mr, B in list_da_itv:
-        # print('DAitv', ml, mr, B)
+        # print('DAitv', np.round(ml,4), np.round(mr,4), B)
         z = ml + config.step
         while z < mr:
-            print(z)
+            # print(z)
             # adapter_z = SelectionAdapter(adapter.fraction)
             cost_z = wt + rt*z + ot*(z**2)
             S_ = adapter.S_.copy()
@@ -236,18 +387,23 @@ def parametric_intervals(
                 # print('    old selecitv', selec_itv)
                 # print('    selection', selection_z)
             over = interval_intersection(selec_itv, [(ml,mr)])
+            if not over:
+                raise RuntimeError("Selection interval does not intersect its DA region")
             z = over[-1][1] + config.step
             
             # print(selection_z)
             if observed_selection == selection_z:
                 print('correct')
-                final_interval.append(over)
+                final_interval.extend(over)
 
             # print('new',z)
 
             
 
-            
+    print('final interval', final_interval)
+    final_interval = interval_union(final_interval)
+    if not any(left <= z_obs <= right for left, right in final_interval):
+        raise RuntimeError("Parametric selection region does not contain etaT_y")
     return final_interval
     # return intervals
 
