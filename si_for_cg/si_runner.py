@@ -7,7 +7,7 @@ import numpy as np
 from .si_overconditioning import CG_overconditioning_intervals, overconditioning_intervals
 from .si_parametric import parametric_intervals, traditional_parametric_intervals, cg_parametric_intervals, ocwithz_intervals
 from .si_types import SIConfig, SIResult, SelectionAdapter
-from .si_utils import compute_p_value, decompose_y
+from .si_utils import compute_p_value, decompose_y, interval_union
 from . import param
 
 def selective_inference(
@@ -33,13 +33,17 @@ def selective_inference(
         y = np.concatenate([ytrain, yval])
         decomposition = decompose_y(y, eta, Sigma)
         if method == "parametric":
-            intervals = traditional_parametric_intervals(Xtrain, Xval, decomposition, 
-                                            adapter, observed_selection, config,)
-            print('interval traditional', intervals)
-            print('------------------------------------')
+            # intervals_left = traditional_parametric_intervals(Xtrain, Xval, decomposition, 
+            #                                             adapter, observed_selection, config, direction=-1)
+            # intervals_right = traditional_parametric_intervals(Xtrain, Xval, decomposition, 
+            #                                                         adapter, observed_selection, config, direction=1)
+            # intervals = interval_union(intervals_left+intervals_right)
+            # print('interval traditional', intervals)
+
+            # print('------------------------------------')
             intervals = parametric_intervals(Xtrain, Xval, decomposition, 
                                                    adapter, observed_selection, config,)
-            print('interval basis tracking', intervals)
+            # print('interval basis tracking', intervals)
 
             # nt, nv = Xtrain.shape[0], Xval.shape[0]
             # S_ = adapter.S_.copy()
@@ -52,7 +56,7 @@ def selective_inference(
             print('oc original', intervals)
             print()
             print('oc with specific z', ocwithz_intervals(Xtrain, Xval, decomposition, 
-                                            adapter, observed_selection, config,z=0.28082)) # 0.28083
+                                            adapter, observed_selection, config,z=-17.5)) # 0.28083
         else:
             raise ValueError("method must be 'parametric' or 'overconditioning'")
     if config.data_valuation == 'cg-score':
@@ -67,7 +71,7 @@ def selective_inference(
         else:
             raise ValueError("method must be 'parametric' or 'overconditioning'")
     # intervals = [(-np.inf, np.inf)]
-    print('\n\nFinal interval',intervals)
+    # print('\n\nFinal interval',intervals)
     p_value = compute_p_value(intervals, 
                               decomposition.etaT_y, decomposition.etaT_Sigma_eta, 
                               null_mean=null_mean, 

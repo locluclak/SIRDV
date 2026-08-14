@@ -137,23 +137,38 @@ def solve_quadratic_inequality(a, b, c):
     if a < 0:
         return [(-np.inf, x2),(x1, np.inf)]
     return [(x1,x2)]
-def solve_quadratic_roots(a, b, c, current_z, z_max):
-    """Tìm nghiệm thực nhỏ nhất của az^2 + bz + c = 0 trong khoảng (current_z, z_max]"""
+def solve_quadratic_roots(a, b, c, current_z, goal, direction=1):
+    """
+    Tìm nghiệm thực nhỏ nhất của az^2 + bz + c = 0 trong khoảng (current_z, goal] nếu direction = 1
+    Tìm nghiệm thực lớn nhất của az^2 + bz + c = 0 trong khoảng [goal, current_z) nếu direction = -1
+    """
     eps = 1e-7
     roots = []
     
-    if abs(a) < 1e-8: # Tuyến tính: bz + c = 0
+    # 1. Giải phương trình
+    if abs(a) < 1e-8:  # Tuyến tính: bz + c = 0
         if abs(b) > 1e-8:
             roots.append(-c / b)
-    else: # Bậc hai
-        delta = b**2 - 4*a*c
+    else:  # Bậc hai
+        delta = b**2 - 4 * a * c
         if delta >= 0:
             sqrt_delta = np.sqrt(delta)
-            roots.append((-b + sqrt_delta) / (2*a))
-            roots.append((-b - sqrt_delta) / (2*a))
+            roots.append((-b + sqrt_delta) / (2 * a))
+            roots.append((-b - sqrt_delta) / (2 * a))
             
-    valid_roots = [r for r in roots if r > current_z + eps and r <= z_max + eps]
-    return min(valid_roots) if valid_roots else None
+    # 2. Lọc nghiệm theo hướng di chuyển (direction)
+    if direction == 1:
+        # Khoảng (current_z, goal] -> lấy min
+        valid_roots = [r for r in roots if r > current_z + eps and r <= goal + eps]
+        return min(valid_roots) if valid_roots else None
+        
+    elif direction == -1:
+        # Khoảng [goal, current_z) -> lấy max
+        valid_roots = [r for r in roots if r >= goal - eps and r < current_z - eps]
+        return max(valid_roots) if valid_roots else None
+        
+    else:
+        raise ValueError("Direction phải là 1 hoặc -1")
 # def solve_quadratic_roots(a, b, c, current_z, z_max):
 #     """Find the smallest real root of a*z^2 + b*z + c = 0 in the interval (current_z, z_max]."""
 #     eps = 1e-7
@@ -201,7 +216,7 @@ def compute_p_value(
     if etaT_Sigma_eta <= 0:
         raise ValueError("etaT_Sigma_eta must be positive")
 
-    print('etaTy', etaT_y)
+    # print('etaTy', etaT_y)
     
     if not intervals:
         return float("nan")

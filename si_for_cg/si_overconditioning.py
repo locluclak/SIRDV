@@ -162,6 +162,14 @@ def overconditioning_intervals(
     # print('OC OT itv', OT_interval)
     curr = decomposition.etaT_y
 
+
+
+    T = np.zeros(nt * nv)
+    x_B = np.linalg.inv(adapter.S_[:, B]).dot(adapter.h_)
+    T[B] = x_B.flatten()
+    cost_z = w_tilde + r_tilde*-20 + o_tilde*-20**2
+    # print('optimal cost', cost_z.reshape(-1).dot(T))
+
     if onlyDA:
         if len(OT_interval) > 1:
             print('SOS')

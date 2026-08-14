@@ -99,13 +99,15 @@ def traditional_parametric_intervals(
     adapter: SelectionAdapter,
     observed_selection: Any,
     config: SIConfig,
+    direction: 1,
 ) -> list[tuple[float, float]]:
     """Approximate the selection region by scanning ``z`` on a fixed grid."""
     if config.step <= 0:
         raise ValueError("step must be positive")
     if config.zmin >= config.zmax:
         raise ValueError("zmin must be smaller than zmax")
-
+    if direction not in [-1, 1]:
+        raise ValueError("direction must be -1 or 1")
     # observed_key = normalize_selection(observed_selection)
     # intervals: list[tuple[float, float]] = []
 
@@ -116,45 +118,12 @@ def traditional_parametric_intervals(
     nt, nv = Xtrain.shape[0], Xval.shape[0]
     # X = np.vstack([Xtrain, Xval])
     etaT_y = decomposition.etaT_y
+    z = etaT_y
 
-    # The observed point is non-negotiable: the selection region passed to
-    # selective inference must contain it.  A left-to-right walk can skip this
-    # basis under OT degeneracy because optimality regions of alternative
-    # zero-basic bases overlap.  Seed the walk with the basis actually used to
-    # obtain the observed selection.
-    observed_da, observed_cost = overconditioning_intervals(
-        Xtrain, Xval, decomposition, adapter, config, onlyDA=True, z=etaT_y
-    )
-    if observed_da is None:
-        raise RuntimeError("Observed OT basis is not optimal at etaT_y")
-    observed_left, observed_right, observed_basis = observed_da
-    observed_w, observed_r, observed_o = observed_cost
-    observed_cost_at_z = observed_w + observed_r * etaT_y + observed_o * etaT_y**2
-    observed_selection_check, observed_top_indices = adapter.select_with_known_basis(
-        nt, adapter.S_, observed_cost_at_z, observed_basis
-    )
-    if observed_selection_check != observed_selection:
-        raise RuntimeError(
-            "Observed basis does not reproduce the observed selection at etaT_y"
-        )
-    observed_selection_regions = sort_conditioning(
-        etaT_y, adapter, observed_basis, observed_w, observed_r, observed_o,
-        observed_top_indices, config,
-    )
-    observed_regions = interval_intersection(
-        observed_selection_regions, [(observed_left, observed_right)]
-    )
-    observed_regions = [
-        region for region in observed_regions if region[0] <= etaT_y <= region[1]
-    ]
-    if not observed_regions:
-        raise RuntimeError("Observed selection interval does not contain etaT_y")
-    final_interval.extend(observed_regions)
-
-    print('finalinterval at start', final_interval)
-    z = config.zmin
+    # print('finalinterval at start', final_interval)
+    # z = config.zmin
     DA = []
-    while z < config.zmax:
+    while np.abs(z) < np.abs(config.zmax):
         # print('z',z)
         y_z = a_vec + b_vec*z
         ytrain_z = y_z[:nt].copy().reshape(-1)
@@ -169,12 +138,15 @@ def traditional_parametric_intervals(
         itv, cost = overconditioning_intervals(Xtrain, Xval, decomposition_z,adapter_z,config, onlyDA=True,z=z)
         # print(itv)
         DA.append(itv)
-        z = itv[1]+config.step
+        position = 1
+        if direction ==-1:
+            position = 0
+        z = itv[position]+direction*config.step
 
 
     wt,rt,ot = cost
     for ml, mr, B in DA:
-        print('daitv', ml, mr)
+        print(f'[{np.round(ml,4)}, {np.round(mr,4)}]',end='')
         # print('basis', B)
         z = ml + config.step
         while z < mr:
@@ -205,10 +177,10 @@ def traditional_parametric_intervals(
                 # print('correct')
                 final_interval.append((l,r))
             # print(itv)
-    print('final interval after', final_interval)
+    # print('final interval after', final_interval)
     final_interval = interval_union(final_interval)
-    if not any(left <= etaT_y <= right for left, right in final_interval):
-        raise RuntimeError("Parametric selection region does not contain etaT_y")
+    # if not any(left <= etaT_y <= right for left, right in final_interval):
+    #     raise RuntimeError("Parametric selection region does not contain etaT_y")
     return final_interval
 
 def _basis_optimal_region(
@@ -221,13 +193,14 @@ def _basis_optimal_region(
 ) -> tuple[float, float]:
     """Return the reduced-cost region of ``basis`` containing ``z``."""
     basis = np.asarray(basis, dtype=int)
+    non_basis = np.setdiff1d(np.arange(H.shape[1]), basis)
     B_inv = np.linalg.inv(H[:, basis])
     pi_u = u[basis].dot(B_inv)
     pi_v = v[basis].dot(B_inv)
     pi_w = w[basis].dot(B_inv)
-    rc_u = u - pi_u.dot(H)
-    rc_v = v - pi_v.dot(H)
-    rc_w = w - pi_w.dot(H)
+    rc_u = u[non_basis] - pi_u.dot(H[:, non_basis])
+    rc_v = v[non_basis] - pi_v.dot(H[:, non_basis])
+    rc_w = w[non_basis] - pi_w.dot(H[:, non_basis])
     # Reduced costs must be non-negative. ``solve_quad_list`` solves <= 0.
     regions = solve_quad_list(-rc_w, -rc_v, -rc_u)
     tol = 1e-8
@@ -247,22 +220,28 @@ def _pivot_basis(
     basis: np.ndarray,
     boundary: float,
     direction: int,
+    config: SIConfig,
 ) -> np.ndarray:
     """Perform the deterministic simplex pivot immediately beyond a boundary."""
     basis = np.asarray(basis, dtype=int).copy()
+    non_basis = np.setdiff1d(np.arange(H.shape[1]), basis)
     B_inv = np.linalg.inv(H[:, basis])
-    rc_u = u - u[basis].dot(B_inv).dot(H)
-    rc_v = v - v[basis].dot(B_inv).dot(H)
-    rc_w = w - w[basis].dot(B_inv).dot(H)
+    pi_u = u[basis].dot(B_inv)
+    pi_v = v[basis].dot(B_inv)
+    pi_w = w[basis].dot(B_inv)
+    rc_u = u[non_basis] - pi_u.dot(H[:, non_basis])
+    rc_v = v[non_basis] - pi_v.dot(H[:, non_basis])
+    rc_w = w[non_basis] - pi_w.dot(H[:, non_basis])
 
     # A small displacement identifies reduced costs that become negative on
     # the requested side without changing the LP at a regular breakpoint.
-    delta = max(1e-7, abs(boundary) * 1e-8)
+    delta = config.step
     probe = boundary + direction * delta
     reduced_probe = rc_u + rc_v * probe + rc_w * probe**2
-    candidates = np.flatnonzero(reduced_probe < -1e-9)
+    candidates = np.flatnonzero(reduced_probe < 0)
     candidates = [int(index) for index in candidates if index not in basis]
     if not candidates:
+        # print()
         raise RuntimeError("No entering variable found beyond parametric boundary")
     entering = min(candidates)  # Bland tie-break
 
@@ -289,6 +268,7 @@ def trace_parametric_bases(
     initial_basis: np.ndarray,
     z_bound: float,
     direction: int,
+    config: SIConfig,
 ) -> list[tuple[float, float, np.ndarray]]:
     """Trace one side of a quadratic-cost simplex path from the observation."""
     if direction not in (-1, 1):
@@ -305,9 +285,8 @@ def trace_parametric_bases(
         if (direction > 0 and boundary >= z_bound - 1e-10) or \
            (direction < 0 and boundary <= z_bound + 1e-10):
             break
-        basis = _pivot_basis(H, h, u, v, w, basis, boundary, direction)
-        z = boundary + direction * max(1e-7, abs(boundary) * 1e-8)
-
+        basis = _pivot_basis(H, h, u, v, w, basis, boundary, direction,config)
+        z = boundary + direction * config.step
     return result
 
 
@@ -325,8 +304,6 @@ def parametric_intervals(
     if config.zmin >= config.zmax:
         raise ValueError("zmin must be smaller than zmax")
 
-    # observed_key = normalize_selection(observed_selection)
-    intervals: list[tuple[float, float]] = []
 
     a_vec = decomposition.a.reshape(-1,1)
     b_vec = decomposition.b.reshape(-1,1)
@@ -353,39 +330,45 @@ def parametric_intervals(
     # The initial basis must be the basis that produced the observed
     # selection.  Starting independently at zmin selects a different valid
     # degenerate basis at etaT_y and makes the observed event disappear.
+    # c_start = wt + rt * config.zmin + ot * (config.zmin**2)
+    # res = linprog(c_start, 
+    #             A_ub = - np.identity(nt * nv), b_ub = np.zeros((nt * nv, 1)), 
+    #                 # bounds=(0, None),
+    #                     A_eq=S_, b_eq=h_, method='simplex',
+    #                     options={'maxiter': 1000000,
+    #                             'bland': True
+    #                             }
+    #                             )
     z_obs = decomposition.etaT_y
+    # right_path = trace_parametric_bases(
+    #     S_, h_.reshape(-1), wt.reshape(-1), rt.reshape(-1), ot.reshape(-1),
+    #     config.zmin, res.basis, config.zmax, direction=1,
+    # )
     right_path = trace_parametric_bases(
         S_, h_.reshape(-1), wt.reshape(-1), rt.reshape(-1), ot.reshape(-1),
-        z_obs, adapter.basis, config.zmax, direction=1,
+        z_obs, adapter.basis, config.zmax, direction=1, config = config
     )
     left_path = trace_parametric_bases(
         S_, h_.reshape(-1), wt.reshape(-1), rt.reshape(-1), ot.reshape(-1),
-        z_obs, adapter.basis, config.zmin, direction=-1,
+        z_obs, adapter.basis, config.zmin, direction=-1, config = config
     )
+
+    # right_path = parametric_simplex_quadratic(nt, nv, S_, h_, wt, rt, ot, z_obs, config.zmax, direction = 1)
+    # left_path = parametric_simplex_quadratic(nt, nv, S_, h_, wt, rt, ot, z_obs, config.zmin, direction = -1)
     # Both paths contain the observed basis region; retain it once.
     list_da_itv = list(reversed(left_path)) + right_path
-
+    # list_da_itv = right_path
+    # print(list_da_itv)
     for ml, mr, B in list_da_itv:
-        print('DAitv', np.round(ml,4), np.round(mr,4), B)
+        # print(f'[{np.round(ml,4)}, {np.round(mr,4)}]',end='')
         z = ml + config.step
         while z < mr:
             # print(z)
-            # adapter_z = SelectionAdapter(adapter.fraction)
             cost_z = wt + rt*z + ot*(z**2)
             S_ = adapter.S_.copy()
             selection_z, top_indices_z = adapter.select_with_known_basis(nt, S_, cost_z, B)
                         
             selec_itv = sort_conditioning(z,adapter, B,wt, rt, ot, top_indices_z,config)
-            # if -7.22503 <= z < -4:
-            #     T = np.zeros(nt * nv)
-                                
-            #     x_B = np.linalg.inv(adapter.S_[:, B]).dot(adapter.h_)
-            #     T[B] = x_B.flatten()
-                # print('    org_cost', np.sum(cost_z))
-                # print('    mor_cost', cost_z.reshape(-1).dot(T))
-                # print('    selection', selection_z)
-                # print('    old selecitv', selec_itv)
-                # print('    selection', selection_z)
             over = interval_intersection(selec_itv, [(ml,mr)])
             if not over:
                 raise RuntimeError("Selection interval does not intersect its DA region")
@@ -396,16 +379,11 @@ def parametric_intervals(
                 # print('correct')
                 final_interval.extend(over)
 
-            # print('new',z)
-
-            
-
-    print('final interval', final_interval)
     final_interval = interval_union(final_interval)
     if not any(left <= z_obs <= right for left, right in final_interval):
         raise RuntimeError("Parametric selection region does not contain etaT_y")
     return final_interval
-    # return intervals
+
 
 def find_valid_basis(H, x_nonzero_indices):
     """Tìm một tập chỉ số sao cho ma trận H[:, basis] là khả nghịch (Full Rank)"""
@@ -424,7 +402,8 @@ def find_valid_basis(H, x_nonzero_indices):
     return sorted(basis)
 
 
-def parametric_simplex_quadratic(ns, nt, H, h, u, v, w, z_min, z_max):
+def parametric_simplex_quadratic(ns, nt, H, h, u, v, w, z_obs, goal, direction = 1):
+# def parametric_simplex_quadratic(ns, nt, H, h, u, v, w, z_min, z_max):
     H = np.array(H, dtype=float)
     h = np.array(h, dtype=float)
     u, v, w = np.array(u), np.array(v), np.array(w)
@@ -432,21 +411,23 @@ def parametric_simplex_quadratic(ns, nt, H, h, u, v, w, z_min, z_max):
     h = h.flatten()
     u, v, w = u.flatten(), v.flatten(), w.flatten()
     num_constraints, num_vars = H.shape
-    current_z = z_min
+    if direction not in [-1,1]:
+        raise ValueError('direction must be -1 or 1')
+    current_z = z_obs
     results = []
 
     # 1. Tìm lời giải ban đầu tại z_min
     
-    c_start = u + v * z_min + w * (z_min**2)
-    # print('start cost', np.sum(c_start))
+    c_start = u + v * current_z + w * (current_z**2)
     res = linprog(c_start, 
-                #   A_ub = - np.identity(ns * nt), b_ub = np.zeros((ns * nt, 1)), 
-                        bounds=(0, None),
+                  A_ub = - np.identity(ns * nt), b_ub = np.zeros((ns * nt, 1)), 
+                        # bounds=(0, None),
                            A_eq=H, b_eq=h, method='simplex',
-                           options={'maxiter': 1000000,'bland': True})
-    # res = linprog(c_start, A_ub = - np.identity(ns * nt), b_ub = np.zeros((ns * nt, 1)), 
-    #                 A_eq = H, b_eq = h, method = 'simplex', 
-    #                 options={'maxiter': 100000})
+                           options={'maxiter': 1000000,
+                                    # 'bland': True
+                                    }
+                                    )
+
 
 
     if not res.success:
@@ -455,7 +436,7 @@ def parametric_simplex_quadratic(ns, nt, H, h, u, v, w, z_min, z_max):
     # Xác định các biến cơ sở ban đầu (đảm bảo ma trận vuông và độc lập tuyến tính)
     basis_indices = res.basis 
     # print('start basis',basis_indices)
-    while current_z < z_max:
+    while np.abs(current_z) < np.abs(goal):
         # print('new zone')
         B = H[:, basis_indices]
         try:
@@ -477,7 +458,7 @@ def parametric_simplex_quadratic(ns, nt, H, h, u, v, w, z_min, z_max):
         rc_w = w - pi_w.dot(H)
 
         # 3. Tìm z_next (điểm mà một RC biến ngoài cơ sở trở thành < 0)
-        next_z = z_max
+        next_z = goal
         entering_var = None
         
         for i in range(num_vars):
@@ -485,15 +466,16 @@ def parametric_simplex_quadratic(ns, nt, H, h, u, v, w, z_min, z_max):
                 continue
             
             # Giải phương trình RC_i(z) = 0
-            root = solve_quadratic_roots(rc_w[i], rc_v[i], rc_u[i], current_z, z_max)
-            if root is not None and root < next_z:
-                next_z = root
-                entering_var = i
+            root = solve_quadratic_roots(rc_w[i], rc_v[i], rc_u[i], current_z, goal)
+            if root is not None:
+                if (root < next_z and direction == 1) or (root > next_z and direction == -1):
+                    next_z = root
+                    entering_var = i
 
         # Lưu lại khoảng ổn định
         results.append((current_z, next_z, np.sort(basis_indices)))
 
-        if entering_var is None or next_z >= z_max:
+        if entering_var is None or (next_z >= goal and direction == 1) and (next_z <= goal and direction == -1):
             break
 
         # 4. Thực hiện Pivot (Rời khỏi cơ sở)
@@ -504,7 +486,7 @@ def parametric_simplex_quadratic(ns, nt, H, h, u, v, w, z_min, z_max):
         # Tỷ số Min-ratio để tìm biến rời khỏi cơ sở
         min_ratio = np.inf
         leaving_idx_in_basis = -1
-        leaving_var_id = np.inf
+        # leaving_var_id = np.inf
         
         for i in range(len(d)):
             if d[i] > 1e-9:
@@ -514,14 +496,14 @@ def parametric_simplex_quadratic(ns, nt, H, h, u, v, w, z_min, z_max):
                 if ratio < min_ratio:
                     min_ratio = ratio
                     leaving_idx_in_basis = i
-                    print(i)
-                    leaving_var_id = basis_indices[i]
-                elif abs(ratio - min_ratio) <= 1e-8:
-                    # tie: prefer smaller actual variable index (Bland's rule)
-                    if basis_indices[i] < leaving_var_id:
-                        leaving_idx_in_basis = i
-                        leaving_var_id = basis_indices[i]
-                        print('choose small index',i)
+                    # print(i)
+                    # leaving_var_id = basis_indices[i]
+                # elif abs(ratio - min_ratio) <= 1e-8:
+                #     # tie: prefer smaller actual variable index (Bland's rule)
+                #     if basis_indices[i] < leaving_var_id:
+                #         leaving_idx_in_basis = i
+                #         leaving_var_id = basis_indices[i]
+                #         print('choose small index',i)
         
         if leaving_idx_in_basis == -1: # Không tìm được biến rời đi (unbounded)
             break
