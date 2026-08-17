@@ -49,7 +49,7 @@ def sort_conditioning(
     vtilde = v_scores[topreverse] - v_scores[topremovefirst]
     wtilde = w_scores[topreverse] - w_scores[topremovefirst]
 
-    intervals = solve_quad_list(utilde, vtilde, wtilde)
+    intervals = solve_quad_list(utilde, vtilde, wtilde, z_debug=None)
 
     return intervals
 

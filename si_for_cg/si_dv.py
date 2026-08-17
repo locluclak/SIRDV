@@ -86,6 +86,7 @@ class SelectiveInference:
                                       Xv= Xval_arr, yv = yval_arr, 
                                       obs_selection = observed_selection,
                                       j = tested_position)
+            print("test statistic", eta.T.dot(np.concatenate((ytrain_arr, yval_arr), axis=0)))
             self.result_ = selective_inference(
                         Xtrain_arr,
                         Xval_arr,
@@ -118,7 +119,7 @@ class SelectiveInference:
                         method=self.method,
                         # null_mean=c,
                     )
-        # print("test statistic", eta.T.dot(np.concatenate((ytrain_arr, yval_arr), axis=0)))
+        print("test statistic", eta.T.dot(np.concatenate((ytrain_arr, yval_arr), axis=0)))
         # print("test position", tested_position)
         # --- Run selective inference
         
@@ -140,7 +141,7 @@ def SI_DV(
     jth: int | None = None,
     zmin: float = -20.0,
     zmax: float = 20.0,
-    step: float = 0.0001,
+    step: float = 0.000001,
     method: str = "parametric",
     data_valuation: str = 'lava',
 ) -> float:

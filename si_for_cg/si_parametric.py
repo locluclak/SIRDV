@@ -154,8 +154,8 @@ def traditional_parametric_intervals(
             # print('z',z)
             cost_z = wt + rt*z + ot*z**2
             S_ = adapter.S_.copy()
-            selection_z, top_indices_z = adapter.select_with_known_basis(nt, S_, cost_z, B)
-            selec_itv = sort_conditioning(z,adapter, B,wt, rt, ot, top_indices_z,config)
+            selection_z, sorted_indices_z = adapter.select_with_known_basis(nt, S_, cost_z, B)
+            selec_itv = sort_conditioning(z,adapter, B,wt, rt, ot, sorted_indices_z,config)
             # if 0 <= z < 2:
             # #     T = np.zeros(nt * nv)
                 
@@ -190,71 +190,138 @@ def _basis_optimal_region(
     w: np.ndarray,
     basis: np.ndarray,
     z: float,
-) -> tuple[float, float]:
-    """Return the reduced-cost region of ``basis`` containing ``z``."""
+    direction: int,
+) -> tuple[float, float, list[int]]:
+    """
+    Return the optimality region of `basis` containing z and the
+    entering-variable candidates at the boundary in `direction`.
+
+    Reduced costs must satisfy:
+        RC_i(z) >= 0
+    for every non-basic variable i.
+    """
     basis = np.asarray(basis, dtype=int)
     non_basis = np.setdiff1d(np.arange(H.shape[1]), basis)
-    B_inv = np.linalg.inv(H[:, basis])
+
+    B = H[:, basis]
+    B_inv = np.linalg.inv(B)
+
     pi_u = u[basis].dot(B_inv)
     pi_v = v[basis].dot(B_inv)
     pi_w = w[basis].dot(B_inv)
+
     rc_u = u[non_basis] - pi_u.dot(H[:, non_basis])
     rc_v = v[non_basis] - pi_v.dot(H[:, non_basis])
     rc_w = w[non_basis] - pi_w.dot(H[:, non_basis])
-    # Reduced costs must be non-negative. ``solve_quad_list`` solves <= 0.
-    regions = solve_quad_list(-rc_w, -rc_v, -rc_u)
+
+    # solve_quad_list() returns the common region where
+    # -RC_i(z) <= 0  <=>  RC_i(z) >= 0.
+    regions = solve_quad_list(-rc_w, -rc_v, -rc_u,)
+
     tol = 1e-8
-    containing = [(left, right) for left, right in regions
-                  if left - tol <= z <= right + tol]
+
+    containing = [
+        (left, right)
+        for left, right in regions
+        if left - tol <= z <= right + tol
+    ]
+
     if not containing:
-        raise RuntimeError("Current basis is not optimal at the parametric point")
-    return containing[0]
+        raise RuntimeError(
+            f"Current basis is not optimal at z={z}"
+        )
+
+    left, right = containing[0]
+
+    # The boundary that will be crossed.
+    boundary = right if direction > 0 else left
+
+    # Find non-basic variables whose reduced cost is zero
+    # at the boundary and becomes negative after crossing it.
+    entering_candidates = []
+
+    for j, var in enumerate(non_basis):
+        a = rc_w[j]
+        b = rc_v[j]
+        c = rc_u[j]
+
+        rc_boundary = (a * boundary**2 + b * boundary + c)
+
+        # Not an active constraint at this boundary.
+        if abs(rc_boundary) > tol:
+            continue
+
+        # Derivative of RC at boundary.
+        derivative = (2.0 * a * boundary + b)
+
+        # First-order test:
+        #
+        # RC(boundary + direction * eps)
+        # approximately
+        # RC(boundary) + direction * derivative * eps
+        #
+        # We need RC to become negative.
+        if direction * derivative < -tol:
+            entering_candidates.append(int(var))
+            continue
+
+        # Tangential root:
+        # derivative ~= 0, therefore inspect second-order term.
+        if abs(derivative) <= tol and a < -tol:
+            entering_candidates.append(int(var))
+
+    return left, right, entering_candidates
 
 
 def _pivot_basis(
     H: np.ndarray,
     h: np.ndarray,
-    u: np.ndarray,
-    v: np.ndarray,
-    w: np.ndarray,
     basis: np.ndarray,
-    boundary: float,
-    direction: int,
-    config: SIConfig,
+    entering: int,
 ) -> np.ndarray:
-    """Perform the deterministic simplex pivot immediately beyond a boundary."""
+    """
+    Perform a deterministic simplex pivot using the supplied
+    entering variable.
+    """
     basis = np.asarray(basis, dtype=int).copy()
-    non_basis = np.setdiff1d(np.arange(H.shape[1]), basis)
-    B_inv = np.linalg.inv(H[:, basis])
-    pi_u = u[basis].dot(B_inv)
-    pi_v = v[basis].dot(B_inv)
-    pi_w = w[basis].dot(B_inv)
-    rc_u = u[non_basis] - pi_u.dot(H[:, non_basis])
-    rc_v = v[non_basis] - pi_v.dot(H[:, non_basis])
-    rc_w = w[non_basis] - pi_w.dot(H[:, non_basis])
 
-    # A small displacement identifies reduced costs that become negative on
-    # the requested side without changing the LP at a regular breakpoint.
-    delta = config.step
-    probe = boundary + direction * delta
-    reduced_probe = rc_u + rc_v * probe + rc_w * probe**2
-    candidates = np.flatnonzero(reduced_probe < 0)
-    candidates = [int(index) for index in candidates if index not in basis]
-    if not candidates:
-        # print()
-        raise RuntimeError("No entering variable found beyond parametric boundary")
-    entering = min(candidates)  # Bland tie-break
+    B = H[:, basis]
+    B_inv = np.linalg.inv(B)
 
+    # Direction of basic variables when entering variable increases.
     direction_vector = B_inv.dot(H[:, entering])
+
+    # Current basic solution.
     x_basic = B_inv.dot(h)
+
+    # Variables that can hit zero.
     eligible = np.flatnonzero(direction_vector > 1e-9)
+
     if eligible.size == 0:
-        raise RuntimeError("Parametric LP became unbounded during pivot")
+        raise RuntimeError(
+            "Parametric LP became unbounded during pivot"
+        )
+
     ratios = x_basic[eligible] / direction_vector[eligible]
+
     min_ratio = np.min(ratios)
-    tied = eligible[np.isclose(ratios, min_ratio, atol=1e-9, rtol=1e-9)]
-    leaving_row = min(tied, key=lambda row: basis[int(row)])
+
+    # Ratio-test tie.
+    tied = eligible[
+        np.isclose(
+            ratios, min_ratio, atol=1e-9, rtol=1e-9,
+        )
+    ]
+
+    # Bland tie-break:
+    # choose the leaving basic variable with smallest index.
+    leaving_row = min(
+        tied,
+        key=lambda row: basis[int(row)],
+    )
+
     basis[int(leaving_row)] = entering
+
     return np.sort(basis)
 
 
@@ -270,23 +337,77 @@ def trace_parametric_bases(
     direction: int,
     config: SIConfig,
 ) -> list[tuple[float, float, np.ndarray]]:
-    """Trace one side of a quadratic-cost simplex path from the observation."""
+    """
+    Trace one side of a quadratic-cost simplex path from the observation.
+    """
     if direction not in (-1, 1):
         raise ValueError("direction must be -1 or 1")
+
     z = float(initial_z)
     basis = np.asarray(initial_basis, dtype=int).copy()
+
     result: list[tuple[float, float, np.ndarray]] = []
 
-    while (direction > 0 and z < z_bound) or (direction < 0 and z > z_bound):
-        left, right = _basis_optimal_region(H, u, v, w, basis, z)
-        left, right = max(left, min(initial_z, z_bound)), min(right, max(initial_z, z_bound))
-        result.append((left, right, basis.copy()))
-        boundary = right if direction > 0 else left
-        if (direction > 0 and boundary >= z_bound - 1e-10) or \
-           (direction < 0 and boundary <= z_bound + 1e-10):
+    tol = 1e-8
+
+    while ((direction > 0 and z < z_bound - tol) or (direction < 0 and z > z_bound + tol)):
+        left, right, entering_candidates = _basis_optimal_region(
+            H=H,
+            u=u, v=v, w=w,
+            basis=basis, z=z,
+            direction=direction,
+        )
+
+        # Restrict interval to requested search range.
+        interval_left = max(left,min(initial_z, z_bound),)
+        interval_right = min(right, max(initial_z, z_bound),)
+
+        result.append(
+            (
+                interval_left,
+                interval_right,
+                basis.copy(),
+            )
+        )
+
+        # Boundary in requested direction.
+        boundary = (interval_right if direction > 0 else interval_left)
+
+        # Reached target.
+        if (direction > 0 and boundary >= z_bound - tol) or (direction < 0 and boundary <= z_bound + tol):
             break
-        basis = _pivot_basis(H, h, u, v, w, basis, boundary, direction,config)
-        z = boundary + direction * config.step
+
+        # No entering variable means the boundary was not caused
+        # by an RC becoming negative in the requested direction.
+        if not entering_candidates:
+            raise RuntimeError(
+                "No entering variable found at parametric boundary "
+                f"z={boundary}, direction={direction}, "
+                f"basis={basis.tolist()}"
+            )
+
+        # Bland rule for entering variable.
+        entering = min(entering_candidates)
+
+        # Pivot using the entering variable already identified
+        # from the active reduced-cost boundary.
+        basis = _pivot_basis(
+            H=H, h=h,
+            basis=basis,
+            entering=entering,
+        )
+
+        # Move just inside the new basis region.
+        #
+        # We no longer use config.step to identify entering.
+        # It is only used to move away from the exact breakpoint.
+        epsilon = max(
+            1e-9,
+            min(1e-7, abs(boundary) * 1e-10,),
+        )
+
+        z = boundary + direction * epsilon
+
     return result
 
 
@@ -325,7 +446,7 @@ def parametric_intervals(
     wt = c_ + Omega_a * Omega_a
     rt = 2 * Omega_a * Omega_b
     ot = Omega_b * Omega_b
-    cost_params = (wt, rt, ot)
+    # cost_params = (wt, rt, ot)
 
     # The initial basis must be the basis that produced the observed
     # selection.  Starting independently at zmin selects a different valid
@@ -356,30 +477,69 @@ def parametric_intervals(
     # right_path = parametric_simplex_quadratic(nt, nv, S_, h_, wt, rt, ot, z_obs, config.zmax, direction = 1)
     # left_path = parametric_simplex_quadratic(nt, nv, S_, h_, wt, rt, ot, z_obs, config.zmin, direction = -1)
     # Both paths contain the observed basis region; retain it once.
-    list_da_itv = list(reversed(left_path)) + right_path
+    last_left = left_path[0]
+    first_right = right_path[0]
+    # print(last_left)
+    # print(first_right)
+    if np.array_equal(last_left[2], first_right[2]):
+        joined_path = last_left[0], first_right[1], last_left[2]
+        # print('j',joined_path)
+        # print()
+    else:
+        raise RuntimeError("Left and right paths do not meet at the observed basis")
+    # print('left after',list(reversed(left_path[1:])))
+    list_da_itv = list(reversed(left_path[1:])) + [joined_path] + right_path[1:]
     # list_da_itv = right_path
     # print(list_da_itv)
+    # print('')
+    zold = -50
     for ml, mr, B in list_da_itv:
-        # print(f'[{np.round(ml,4)}, {np.round(mr,4)}]',end='')
+        # print(f'[{np.round(ml,7)}, {np.round(mr,7)}]',end='')
+        # if ml > -0.27 and mr < -0.17:
+            # print('basis', B)
         z = ml + config.step
         while z < mr:
             # print(z)
             cost_z = wt + rt*z + ot*(z**2)
             S_ = adapter.S_.copy()
-            selection_z, top_indices_z = adapter.select_with_known_basis(nt, S_, cost_z, B)
-                        
-            selec_itv = sort_conditioning(z,adapter, B,wt, rt, ot, top_indices_z,config)
+            selection_z, sorted_indices_z = adapter.select_with_known_basis(nt, S_, cost_z, B)
+            scores_z = -np.dot(
+                np.linalg.inv(S_[:, B].T),
+                cost_z[B]
+            )
+
+            scores_z = scores_z[:nt].reshape(-1)
+            scores_z = 2 * scores_z - np.sum(scores_z)
+
+            # print("z =", z)
+            # print("sorted =", sorted_indices_z)
+
+            # for a, b in zip(sorted_indices_z[:-1], sorted_indices_z[1:]):
+            #     diff = scores_z[a] - scores_z[b]
+            #     print(
+            #         f"pair ({a}, {b}), "
+            #         f"score[a]-score[b] = {diff:.18e}"
+            #     )
+            selec_itv = sort_conditioning(z,adapter, B,wt, rt, ot, sorted_indices_z,config)
             over = interval_intersection(selec_itv, [(ml,mr)])
+            # print(f'DA [{np.round(ml,7)}, {np.round(mr,7)}]')
+            # print('selec',selec_itv)
+            # print(over)
             if not over:
                 raise RuntimeError("Selection interval does not intersect its DA region")
             z = over[-1][1] + config.step
-            
+
+
+            if z == zold:
+                raise RuntimeError("z did not advance;")
+            zold = z
             # print(selection_z)
             if observed_selection == selection_z:
                 # print('correct')
                 final_interval.extend(over)
 
     final_interval = interval_union(final_interval)
+    # print('\n\nfinal interval after', final_interval)
     if not any(left <= z_obs <= right for left, right in final_interval):
         raise RuntimeError("Parametric selection region does not contain etaT_y")
     return final_interval

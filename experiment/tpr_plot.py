@@ -8,13 +8,13 @@ import matplotlib.pyplot as plt
 
 
 def main():
-    betas = [0.5, 1.0, 1.5, 2.0]
+    betas = [0.5, 1, 1.5, 2]
     alpha = 0.05
     methods = {
         "overconditioning": "overco",
         "parametric": "parame",
     }
-
+    dv = "lava"  # or "cg-score"
     output_dir = os.path.join(os.path.dirname(__file__), "..", "output")
 
     print(f"{'beta':>6s}  {'method':>18s}  {'valid':>6s}  {'rejected':>8s}  {'TPR':>6s}")
@@ -25,7 +25,7 @@ def main():
     for method_name, prefix in methods.items():
         tpr_list = []
         for beta_val in betas:
-            fname = f"tpr_{prefix}_b{beta_val}.txt"
+            fname = f"tpr_{dv}_{prefix}_beta{beta_val}.txt"
             fpath = os.path.join(output_dir, fname)
 
             if not os.path.exists(fpath):
@@ -63,7 +63,7 @@ def main():
         ax.plot(betas, tpr_list, marker=markers[method_name], color=colors[method_name],
                 label=method_name, linewidth=1.5, markersize=6)
 
-    ax.axhline(y=alpha, color="gray", linestyle="--", linewidth=1, label=f"nominal (alpha={alpha})")
+    # ax.axhline(y=alpha, color="gray", linestyle="--", linewidth=1, label=f"nominal (alpha={alpha})")
     ax.set_xlabel("Signal strength (beta)")
     ax.set_ylabel("True Positive Rate")
     ax.set_title("TPR vs Signal Strength under Alternative Hypothesis")

@@ -100,11 +100,11 @@ def solve_linear_inequality(b, c):
 def solve_quadratic_inequality(a, b, c):
     """ ax^2 + bx +c <= 0 """
     # a, b, c = np.round(a, 8), np.round(b, 8), np.round(c, 8)
-    if abs(a) < 1e-12:
+    if abs(a) < 1e-9:
         a = 0
-    if abs(b) < 1e-12:
+    if abs(b) < 1e-9:
         b = 0
-    if abs(c) < 1e-12:
+    if abs(c) < 1e-9:
         c = 0
     if a == 0:
         # print(f"b: {b}")
@@ -188,7 +188,7 @@ def solve_quadratic_roots(a, b, c, current_z, goal, direction=1):
 #     return min(valid_roots) if valid_roots else None
 
 
-def solve_quad_list(p, q, r):
+def solve_quad_list(p, q, r, z_debug=None):
     """Solve a list of quadratic ax^2 + bx + c <= 0 inequalities and return their intersection."""
     if len(p) == 0:
         return [(-np.inf, np.inf)]
@@ -199,6 +199,28 @@ def solve_quad_list(p, q, r):
         if intervals_i is None:
             print('Error in solving quadratic ineq')
             return []
+        a = pi.item()
+        b = qi.item()
+        c = ri.item()
+        if z_debug is not None:
+            val = a*z_debug*z_debug + b*z_debug + c
+
+            contains = any(
+                lo <= z_debug <= hi
+                for lo, hi in intervals_i
+            )
+
+            print(
+                # f"[{idx}] "
+                f"a={a:.18e}, "
+                f"b={b:.18e}, "
+                f"c={c:.18e}"
+            )
+            print(
+                f"    f(z)={val:.18e}, "
+                f"interval={intervals_i}, "
+                f"contains_z={contains}"
+            )
         intervals = interval_intersection(intervals, intervals_i)
         if not intervals:
             print('Error intersection')

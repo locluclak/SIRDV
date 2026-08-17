@@ -39,7 +39,7 @@ def generate(n, m, p, true_beta_s, true_beta_t, seed = None):
 
     return Xs, Xt, Ys, Yt, Sigma_s, Sigma_t
 
-def compute_pvalue_once(n=50, d=2, fraction=0.5, rng=None):
+def compute_pvalue_once(n=50, d=3, fraction=0.5, rng=None):
     """Generate one dataset and return one p-value."""
     if rng is None:
         rng = np.random.RandomState()
@@ -51,12 +51,12 @@ def compute_pvalue_once(n=50, d=2, fraction=0.5, rng=None):
 
     # # X, y = normalize_data(X, y)
     # X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=1)
-    true_beta_t = np.asarray([0]*d).reshape(-1,1)
-    true_beta_v = np.asarray([0]*d).reshape(-1,1)
-    X_tr, X_te, y_tr, y_te, St, Sv = generate(n, 10, d, true_beta_t, true_beta_v,seed=None)
+    true_beta_t = np.asarray([1]*d).reshape(-1,1)
+    true_beta_v = np.asarray([1]*d).reshape(-1,1)
+    X_tr, X_te, y_tr, y_te, St, Sv = generate(n, 15, d, true_beta_t, true_beta_v,seed=0)
     # print(X_tr.shape, y_tr.shape)
     pval = SI_DV(X_tr, y_tr, Xval=X_te, yval=y_te,
-                 fraction=fraction, jth=None, 
+                 fraction=fraction, jth=rng.randint(0, d), 
                  zmin=-20., zmax=20,
                  method="parametric",
                 #  method="overconditioning"
@@ -65,10 +65,10 @@ def compute_pvalue_once(n=50, d=2, fraction=0.5, rng=None):
 
 
 def main():
-    n_iter = 120
+    n_iter = 1
     print(f"Running {n_iter} iterations of SI_DV overconditioning...")
 
-    rng = np.random.RandomState(seed=2)
+    rng = np.random.RandomState(seed=0)
     pvalues = []
     for i in range(n_iter):
         pv = compute_pvalue_once(rng=rng)
@@ -83,22 +83,22 @@ def main():
     print(f"\n{len(pvalues)} valid p-values collected")
 
     # KS test against Uniform(0,1)
-    ks_stat, ks_pval = kstest(pvalues, uniform.cdf)
-    print(f"KS test: statistic={ks_stat:.4f}, p-value={ks_pval:.4f}")
+    # ks_stat, ks_pval = kstest(pvalues, uniform.cdf)
+    # print(f"KS test: statistic={ks_stat:.4f}, p-value={ks_pval:.4f}")
 
-    # Plot histogram
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.hist(pvalues, bins=20, density=True, alpha=0.7, edgecolor="black", label="Observed p-values")
-    # ax.axhline(y=1.0, color="red", linestyle="--", linewidth=1.5, label="Uniform(0,1)")
-    ax.set_xlabel("p-value")
-    ax.set_ylabel("Density")
-    ax.set_title(f"SI_DV Overconditioning p-value Distribution (n={len(pvalues)})\n"
-                 f"KS stat={ks_stat:.4f}, KS p={ks_pval:.4f}")
-    ax.legend()
-    plt.tight_layout()
-    plt.savefig(os.path.join(os.path.dirname(__file__), "..", "output", "pvalue_histogram.png"), dpi=150)
-    print("Saved pvalue_histogram_para.png")
-    plt.show()
+    # # Plot histogram
+    # fig, ax = plt.subplots(figsize=(8, 5))
+    # ax.hist(pvalues, bins=20, density=True, alpha=0.7, edgecolor="black", label="Observed p-values")
+    # # ax.axhline(y=1.0, color="red", linestyle="--", linewidth=1.5, label="Uniform(0,1)")
+    # ax.set_xlabel("p-value")
+    # ax.set_ylabel("Density")
+    # ax.set_title(f"SI_DV Overconditioning p-value Distribution (n={len(pvalues)})\n"
+    #              f"KS stat={ks_stat:.4f}, KS p={ks_pval:.4f}")
+    # ax.legend()
+    # plt.tight_layout()
+    # plt.savefig(os.path.join(os.path.dirname(__file__), "..", "output", "pvalue_histogram.png"), dpi=150)
+    # print("Saved pvalue_histogram_para.png")
+    # plt.show()
 
 
 if __name__ == "__main__":
