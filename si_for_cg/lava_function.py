@@ -33,8 +33,8 @@ def calc_lava_score(Xtrain: np.ndarray, ytrain: np.ndarray,
     S = OptimalTransport.convert(nt, nv)
     
     # remove last row
-    S_ = S[:-1].copy()
-    h_ = h[:-1].copy()
+    S_ = S[:-1]
+    h_ = h[:-1]
     
     # Gamma drives source data to target data 
     OTresult = OptimalTransport.solveOT(nt, nv, S_, h_, XtXv_, basis_hint=basis_hint)
@@ -44,16 +44,15 @@ def calc_lava_score(Xtrain: np.ndarray, ytrain: np.ndarray,
     
     # LAVA = d OT(mu_t, mu_v) / d mu_ (z_i) 
     # S_train = S_[:nt]
-    S_basis = S_[:, Basis].copy()
+    S_basis = S_[:, Basis]
     # print("cost lava",np.sum(cost_vec))
-    cost_vec = cost[Basis].copy()
+    cost_vec = cost[Basis]
     # print("-- cost lava",np.sum(cost_vec))
     # print("-- basis", Basis)
-    scores = -1*np.dot(np.linalg.inv(S_basis.T), cost_vec)
+    # scores = -1*np.dot(np.linalg.inv(S_basis.T), cost_vec)
+    scores = -np.linalg.solve(S_basis.T, cost_vec)
     # print('nt',nt)
-
     scores = scores[:nt].copy()
-    
     scores = scores.reshape(-1)
     scores = 2*scores - np.sum(scores)
 

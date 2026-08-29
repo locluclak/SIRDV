@@ -5,49 +5,72 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sklearn.model_selection import train_test_split
-from si_for_cg import SI_DV
+from si_for_cg import SI_DV, NaiveTest, FSNaiveTest
 from si_for_cg.si_utils import generate
-
+import time
 
 def main():
-    ns = [150]
-    d = 2
+    ns = [50]
+    fraction_list = [0.2, 0.4, 0.6, 0.8]
+    d_list = [4,5,6,7]
+    d = 5
     fraction = 0.5
     iters = 120
     alpha = 0.05
+    dv = "lava"
+    n = 50
+    lambda_ = 10
+    os.makedirs(os.path.join(os.path.dirname(__file__), "..", "output3"), exist_ok=True)
 
-    os.makedirs(os.path.join(os.path.dirname(__file__), "..", "output"), exist_ok=True)
-
-    for method in ["parametric"]:
+    for method in ['parametric']:
         print(f"\n{'='*60}")
         print(f"Method: {method}")
         print(f"{'='*60}")
 
         for n in ns:
-            print(f"\n--- n={n} ---")
-            fname = f"fpr_lava_{method[:6]}_n{n}.txt"
-            fpath = os.path.join(os.path.dirname(__file__), "..", "output", fname)
+        # for fraction in fraction_list:
+        # for d in d_list:
+            fname = f"fpr_{dv}FS_{method[:6]}_n{n}_lambda{lambda_}.txt"
+            # fname = f"fpr_{dv}FS_{method[:6]}_d{d}_lambda{lambda_}.txt"
+            # fname = f"fpr_{dv}_{method[:6]}_fraction{fraction}.txt"
+            fpath = os.path.join(os.path.dirname(__file__), "..", "output3", fname)
             valid_count = 0
             rejected_count = 0
 
             with open(fpath, "a") as f:
-                for i in range(0,iters):
-                    print('seed', i)
-                    rng = np.random.RandomState(seed=i)
+                i=0
+                seedd = 0
+                while i < iters:
+                    seedd+=1
+                    print('seed', seedd)
+                    # rng = np.random.RandomState(seed=None)
                     true_beta_t = np.asarray([0]*d).reshape(-1,1)
                     true_beta_v = np.asarray([0]*d).reshape(-1,1)
-                    X_tr, X_te, y_tr, y_te, St, Sv = generate(n, 15, d, true_beta_t, true_beta_v,seed=i)
+                    X_tr, X_te, y_tr, y_te, St, Sv = generate(n, 15, d, true_beta_t, true_beta_v,seed=seedd)
                     # print(X_tr.shape, y_tr.shape)
                     # pval = 
-
-                    pv = SI_DV(X_tr, y_tr, Xval=X_te, yval=y_te,
-                                fraction=fraction, jth=rng.randint(0, d),
-                                zmin=-20., zmax=20,
-                                method=method, data_valuation="lava")
+                    start_t = time.time()
+                    try:
+                        if method != "naive":
+                            pv = SI_DV(X_tr, y_tr, Xval=X_te, yval=y_te,
+                                        fraction=fraction, jth=None,
+                                        zmin=-20., zmax=20,
+                                        method=method, data_valuation=dv)
+                        else:
+                            runner = FSNaiveTest(fraction=fraction, data_valuation= dv, 
+                                                    # lambda_= lambda_
+                                                    )
+                            pv = runner.fit(X_tr, y_tr, Xval=X_te, yval=y_te, jth=None)
+                    except Exception as error:
+                        print(f"An error occurred: {error}")
+                        continue
+                    end_t = time.time()
+                    with open('output3/time'+fname, 'a') as ftime:
+                        ftime.write(str(end_t-start_t)+'\n')
 
                     f.write(f"{pv}\n")
                     f.flush()
-
+                    i+=1
                     if not np.isnan(pv):
                         valid_count += 1
                         if pv <= alpha:

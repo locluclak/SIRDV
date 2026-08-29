@@ -24,6 +24,13 @@ class SIConfig:
     step: float = 0.00001
     atol: float = 1e-10
 
+@dataclass
+class LassoInfo:
+    lambda_: float = 10.0
+    M: np.ndarray = None
+    Mc: np.ndarray = None
+    sM: np.ndarray = None
+
 
 @dataclass
 class SIDecomposition:

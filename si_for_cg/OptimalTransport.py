@@ -94,15 +94,18 @@ def solveOT(ns, nt, S_, h_, X_, basis_hint=None):
     # equivalent -T <= 0 rows: they are redundant and let the two-phase
     # simplex choose different degenerate bases after presolve.  Bland's rule
     # makes the remaining pivot tie-break deterministic along the z path.
+    print('begin')
     res = linprog(cost,
                   bounds=(0, None),
+                #   A_ub = - np.identity(ns * nt), b_ub = np.zeros((ns * nt, 1)), 
                   A_eq=S_,
                   b_eq=h_,
                   method='simplex',
-                  options={'maxiter': 1_000_000,
+                  options={'maxiter': 100_000,
                         #    'bland': True,
                         #    'presolve': False
                            })
+    print('end')
     if not res.success:
         raise RuntimeError(f"Optimal transport LP failed: {res.message}")
     # Transport Map
@@ -113,7 +116,7 @@ def solveOT(ns, nt, S_, h_, X_, basis_hint=None):
     # optimal for this cost instead of replacing it with an arbitrary zero-arc
     # basis reached by a fresh simplex run.
     basis = res.basis
-    if basis_hint is not None and basis_is_optimal(S_, h_, cost, basis_hint):
-        print('use basis hint')
-        basis = np.asarray(basis_hint, dtype=int)
+    # if basis_hint is not None and basis_is_optimal(S_, h_, cost, basis_hint):
+    #     print('use basis hint')
+    #     basis = np.asarray(basis_hint, dtype=int)
     return {"gamma": gamma, "basis": basis, "cost": cost,}

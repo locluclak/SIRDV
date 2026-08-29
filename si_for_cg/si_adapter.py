@@ -25,12 +25,14 @@ class CGSelectionAdapter:
         else:
             invH = self.invH
             scores = calc_cg_score(X, y, normalize=False, return_gram=False, invH=invH)
-            
-        n_keep = max(1, int(len(scores) * self.fraction))
+        if self.fraction <= 1:
+            n_keep = max(1, int(len(scores) * self.fraction))
+        else:
+            n_keep = self.fraction
         self.sorted_indices = np.argsort(scores)
         self.top_indices = self.sorted_indices[-n_keep:]
 
-        return tuple(int(idx) for idx in sorted(self.top_indices))
+        return list(int(idx) for idx in sorted(self.top_indices))
 
 @dataclass
 class SelectionAdapter:
@@ -66,8 +68,10 @@ class SelectionAdapter:
         # self.ytrain = ytrain
         # self.Xval = Xval
         # self.yval = yval
-        
-        n_keep = max(1, int(len(scores) * self.fraction))
+        if self.fraction <= 1:
+            n_keep = max(1, int(len(scores) * self.fraction))
+        else:
+            n_keep = self.fraction
         self.sorted_indices = np.argsort(scores, stable=True)
         self.top_indices = self.sorted_indices[-n_keep:]
 
@@ -77,7 +81,8 @@ class SelectionAdapter:
 
         S_basis = S_[:, Basis]
         cost_vec = cost_vec[Basis]
-        scores = -1*np.dot(np.linalg.inv(S_basis.T), cost_vec)
+        scores = -np.linalg.solve(S_basis.T, cost_vec)
+        # scores = -1*np.dot(np.linalg.inv(S_basis.T), cost_vec)
         # print('nt',nt)
         
         scores = scores[:nt]
@@ -129,4 +134,41 @@ def make_eta(Xt: np.ndarray, yt: np.ndarray,
 
     return eta
 
+
+def make_etaFS(Xt: np.ndarray, yt: np.ndarray,
+             Xv: np.ndarray, yv: np.ndarray,
+             M, 
+             j: int) -> np.ndarray:
+    """Make eta vector for selective inference."""
+    nt, p = Xt.shape
+    nv = Xv.shape[0]
+
+    # obs_selection = np.asarray(obs_selection, dtype=int)
+    Xt_prunned = Xt[:, M].copy()
+    
+    trainpart = np.linalg.inv(Xt_prunned.T.dot(Xt_prunned)).dot(Xt_prunned.T)
+    valpart = np.zeros((p, nv))[M]
+    # print(trainpart.shape, valpart.shape)
+    ej = np.zeros(len(M))
+    ej[j] = 1
+    eta = (ej.dot(np.hstack((trainpart, valpart)))).T
+
+    return eta
 __all__ = ["SelectionAdapter", "CGSelectionAdapter"]
+
+def make_eta_cgFS(X: np.ndarray, y: np.ndarray,
+            #  obs_selection: list[int],
+             M,
+             j: int) -> np.ndarray:
+    """Make eta vector for selective inference."""
+    n, p = X.shape
+
+    X_prunned = X[:, M].copy()
+    
+    trainpart = np.linalg.inv(X_prunned.T.dot(X_prunned)).dot(X_prunned.T)
+    # print(trainpart.shape, valpart.shape)
+    ej = np.zeros(len(M))
+    ej[j] = 1
+    eta = (ej.dot(trainpart)).T
+
+    return eta

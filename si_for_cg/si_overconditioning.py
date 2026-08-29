@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import numpy as np
 
-from .si_types import SIConfig, SIDecomposition, SelectionAdapter
+from .si_types import SIConfig, SIDecomposition, SelectionAdapter, LassoInfo
 from .si_utils import solve_quad_list, solve_linear_inequality, interval_intersection
 from . import OptimalTransport
+from scipy.linalg import lu_factor, lu_solve
 
 def sort_conditioning(
     current_pos,
@@ -15,49 +16,41 @@ def sort_conditioning(
     w_cost: np.ndarray,
     v_cost: np.ndarray,
     u_cost: np.ndarray, 
-    top_indices,
+    top_indices: np.ndarray,
     config: SIConfig, 
 ) -> list[tuple[float, float]]:
-    # print("cp",current_pos)
-    S_ = adapter.S_
-    h_= adapter.h_
-    S_basis = S_[:,basis_current]
-    invSbasis = np.linalg.inv(S_basis.T)
-    # observed_selection = observed_selection.reshape(-1)
-    # print(basis_current)
-    # print(v_cost)
-    # print('index', top_indices)
-    u_cost = u_cost[basis_current]
-    v_cost = v_cost[basis_current]
-    w_cost = w_cost[basis_current]
-    u_scores = -1*np.dot(invSbasis, u_cost)
-    v_scores = -1*np.dot(invSbasis, v_cost)
-    w_scores = -1*np.dot(invSbasis, w_cost)
+    S_basis_T = adapter.S_[:, basis_current].T
+    
+    rhs = np.column_stack([
+        u_cost[basis_current], 
+        v_cost[basis_current], 
+        w_cost[basis_current]
+    ])
+    rhs *= -1  # In-place negation
 
-    u_scores = u_scores[:adapter.nt].copy()
-    v_scores = v_scores[:adapter.nt].copy()
-    w_scores = w_scores[:adapter.nt].copy()
+    lu, piv = lu_factor(S_basis_T)
+    scores = lu_solve((lu, piv), rhs)
 
-    u_scores = 2*u_scores - np.sum(u_scores)
-    v_scores = 2*v_scores - np.sum(v_scores)
-    w_scores = 2*w_scores - np.sum(w_scores)
-    # print('score', w_scores + v_scores*current_pos + u_scores*current_pos**2)
+    scores *= 2.0
+    scores -= np.sum(scores, axis=0)
 
-    topreverse = top_indices[:-1].copy()
-    topremovefirst = top_indices[1:].copy()
-    utilde = u_scores[topreverse] - u_scores[topremovefirst]
-    vtilde = v_scores[topreverse] - v_scores[topremovefirst]
-    wtilde = w_scores[topreverse] - w_scores[topremovefirst]
+    topreverse = top_indices[:-1]
+    topremovefirst = top_indices[1:]
 
-    intervals = solve_quad_list(utilde, vtilde, wtilde, z_debug=None)
+    diffs = scores[topreverse, :] - scores[topremovefirst, :]
+    
+    utilde = diffs[:, 0]
+    vtilde = diffs[:, 1]
+    wtilde = diffs[:, 2]
 
-    return intervals
+    return solve_quad_list(utilde, vtilde, wtilde, z_debug=None)
 
 def CG_overconditioning_intervals(
     X: np.ndarray,
     decomposition: SIDecomposition,
     adapter: SelectionAdapter,
     config: SIConfig,
+    fs: LassoInfo = None
 ) -> list[tuple[float, float]]:
     """
     Compute selection-condition intervals using the overconditioning method.
@@ -101,17 +94,19 @@ def CG_overconditioning_intervals(
     # print('qt', qt)
     # print('rt', rt)
     intervals = solve_quad_list(pt, qt, rt)
-
-    return intervals
+    fs_itv = conditioning_Lasso(X, a_vec, b_vec, fs.lambda_, fs.M, fs.Mc, fs.sM)
+    cg_oc_itv = interval_intersection(intervals, fs_itv)
+    return cg_oc_itv
 def overconditioning_intervals(
     Xtrain: np.ndarray,
     Xval: np.ndarray,
     decomposition: SIDecomposition,
     adapter: SelectionAdapter,
-    # observed_selection: tuple[int, ...],
     config: SIConfig,
+    observed_selection: tuple[int, ...] =None,
     onlyDA=False,
     z:float = 0,
+    fs: LassoInfo = None
 ) -> list[tuple[float, float]]:
     """
     Compute selection-condition intervals using the overconditioning method.
@@ -181,7 +176,15 @@ def overconditioning_intervals(
     # print(curr)
     selection_interval = sort_conditioning(curr, adapter, B, w_tilde, r_tilde, o_tilde,adapter.sorted_indices,config)
     # print("OC selec itv", selection_interval)
-    intervals = interval_intersection(OT_interval, selection_interval)
+    # print(a_vec[observed_selection].shape)
+    fs_itv = conditioning_Lasso(Xtrain[observed_selection], a_vec[observed_selection], b_vec[observed_selection], fs.lambda_,fs.M, fs.Mc, fs.sM)
+
+    # print('yobssub', a_vec[observed_selection] + b_vec[observed_selection]*decomposition.etaT_y)
+    intervals = interval_intersection(
+        interval_intersection(OT_interval, selection_interval),
+        fs_itv
+        )
+
     for itv in intervals:
         l,r = itv
         # print(l)
@@ -191,3 +194,30 @@ def overconditioning_intervals(
     return []
     # return interval_intersection(OT_interval, selection_interval)
 
+def conditioning_Lasso(X_, a, b, Lambda, M, Mc, sM):
+    X_M = X_[:, M]
+    X_Mc = X_[:, Mc]
+
+    X_MT_X_M_inv = np.linalg.inv(X_M.T.dot(X_M))
+    X_M_plus = X_MT_X_M_inv.dot(X_M.T)
+    X_MT_plus = X_M.dot(X_MT_X_M_inv)
+
+    Atilde0 = - sM * (X_M_plus) 
+    Btilde0 = - Lambda * sM * (X_MT_X_M_inv.dot(sM))
+
+    Atilde10 = X_Mc.T.dot(np.identity(X_.shape[0]) - X_M.dot(X_M_plus))
+    Atilde11 = - Atilde10
+
+    tmp = X_Mc.T.dot(X_MT_plus).dot(sM)
+    Btilde10 = np.ones((tmp.shape[0], 1)) - tmp
+    Btilde11 = np.ones((tmp.shape[0], 1)) + tmp
+
+    Atilde1 = np.vstack((Atilde10, Atilde11)) / Lambda
+    Btilde1 = np.vstack((Btilde10, Btilde11))
+
+    Atilde = np.vstack((Atilde0, Atilde1))
+    Btilde = np.vstack((Btilde0, Btilde1))
+
+    A = Atilde.dot(b)
+    B = Btilde - Atilde.dot(a)
+    return solve_linear_inequality(A, -B)

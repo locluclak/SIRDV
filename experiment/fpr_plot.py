@@ -6,16 +6,20 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import matplotlib.pyplot as plt
 
-
+import math
 def main():
     ns = [50, 100, 150, 200]
     alpha = 0.05
     methods = {
-        "overconditioning": "overco",
+        # "overconditioning": "overco",
         # "parametric": "parame",
+        "naive": "naive",
+        # "bonferroni": "naive"
     }
+    fraction = 0.5
 
-    output_dir = os.path.join(os.path.dirname(__file__), "..", "output")
+    dv = 'cg-score'
+    output_dir = os.path.join(os.path.dirname(__file__), "..", "output2")
 
     print(f"{'n':>6s}  {'method':>18s}  {'valid':>6s}  {'rejected':>8s}  {'FPR':>6s}")
     print(f"{'------':>6s}  {'------------------':>18s}  {'------':>6s}  {'--------':>8s}  {'------':>6s}")
@@ -25,7 +29,7 @@ def main():
     for method_name, prefix in methods.items():
         fpr_list = []
         for n in ns:
-            fname = f"fpr_{prefix}_n{n}.txt"
+            fname = f"fpr_{dv}FS_{prefix}_n{n}_lambda10.txt"
             fpath = os.path.join(output_dir, fname)
 
             if not os.path.exists(fpath):
@@ -44,7 +48,11 @@ def main():
                             continue
 
             valid = len(pvalues)
-            rejected = sum(1 for pv in pvalues if pv <= alpha)
+            if method_name == "bonferroni":
+                adj_pvalue = alpha / math.comb(n, int(fraction*n))
+                rejected = sum(1 for pv in pvalues if pv <= adj_pvalue)
+            else:
+                rejected = sum(1 for pv in pvalues if pv <= alpha)
             fpr = rejected / valid if valid > 0 else float('nan')
             fpr_list.append(fpr)
 
@@ -56,8 +64,8 @@ def main():
 
     fig, ax = plt.subplots(figsize=(8, 5))
 
-    colors = {"overconditioning": "tab:blue", "parametric": "tab:red"}
-    markers = {"overconditioning": "o", "parametric": "s"}
+    colors = {"overconditioning": "tab:green", "parametric": "tab:red", "naive": "tab:blue", "bonferroni": "tab:purple"}
+    markers = {"overconditioning": "o", "parametric": "o", "naive": "o", "bonferroni": "o"}
 
     for method_name, fpr_list in fpr_results.items():
         ax.plot(ns, fpr_list, marker=markers[method_name], color=colors[method_name],
@@ -72,7 +80,7 @@ def main():
     ax.legend()
     plt.tight_layout()
 
-    save_path = os.path.join(output_dir, "fpr_comparison.png")
+    save_path = os.path.join(output_dir, f"fpr_comparison_{dv}_FS_fixsample.png")
     plt.savefig(save_path, dpi=150)
     print(f"Saved plot to {save_path}")
     plt.show()

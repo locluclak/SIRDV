@@ -1,7 +1,7 @@
 """DV-score selective inference package exports."""
 
 from .lava_function import calc_lava_score
-from .si_dv import SelectionAdapter, SelectiveInference, SI_DV
+from .si_dv import SelectionAdapter, SelectiveInference, SI_DV, NaiveTest, FSNaiveTest
 from .si_types import SIConfig, SIDecomposition, SIResult
 
 __all__ = [
@@ -9,6 +9,8 @@ __all__ = [
     "SelectionAdapter",
     "SelectiveInference",
     "SI_DV",
+    "NaiveTest",
+    "FSNaiveTest",
     "SIConfig",
     "SIDecomposition",
     "SIResult",

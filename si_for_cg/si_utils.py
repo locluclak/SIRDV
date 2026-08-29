@@ -9,6 +9,7 @@ from mpmath import mp
 from numpy.linalg import lstsq
 
 from .si_types import SIDecomposition
+from sklearn.linear_model import Lasso
 
 mp.dps = 500
 def generate(n, m, p, true_beta_s, true_beta_t, seed = None):
@@ -79,9 +80,11 @@ def solve_linear_inequality(b, c):
     left = -np.inf
     right = np.inf
     for bi, ci in zip(b, c):
-        if abs(bi) < 1e-8:
+        bi = bi.item()
+        ci = ci.item()
+        if abs(bi) < 1e-12:
             bi = 0
-        if abs(ci) < 1e-8:
+        if abs(ci) < 1e-12:
             ci = 0
         if bi == 0:
             if ci <= 0:
@@ -292,3 +295,14 @@ def decompose_y(y: np.ndarray, eta: np.ndarray, Sigma: np.ndarray) -> SIDecompos
         a=a,
         b=b,
     )
+def solve_Lasso(X, Y, Lambda):
+    p = X.shape[1]
+
+    lasso = Lasso(alpha = Lambda / X.shape[0], fit_intercept=False, tol = 1e-10, max_iter=100000000)
+    lasso.fit(X, Y)
+
+    beta_hat = lasso.coef_.reshape(p, 1)
+    M = np.nonzero(beta_hat)[0]
+    Mc = np.nonzero(beta_hat == 0)[0]
+    sM = np.sign(beta_hat[M])
+    return M, Mc, sM

@@ -5,7 +5,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sklearn.model_selection import train_test_split
-from si_for_cg import SI_DV
+from si_for_cg import SI_DV, NaiveTest
 from si_for_cg.si_utils import generate
 
 
@@ -16,17 +16,18 @@ def main():
     fraction = 0.5
     iters = 120
     alpha = 0.05
-
+    # dv = "lava"
+    dv = "cg-score"
     os.makedirs(os.path.join(os.path.dirname(__file__), "..", "output"), exist_ok=True)
 
-    for method in ["overconditioning"]:
+    for method in ["naive"]:
         print(f"\n{'='*60}")
         print(f"Method: {method}")
         print(f"{'='*60}")
 
         for b in beta:
             print(f"\n--- beta={b} ---")
-            fname = f"tpr_lava_{method[:6]}_beta{b}.txt"
+            fname = f"tpr_{dv}_{method[:6]}_beta{b}.txt"
             fpath = os.path.join(os.path.dirname(__file__), "..", "output", fname)
             valid_count = 0
             rejected_count = 0
@@ -41,11 +42,12 @@ def main():
                     # print(X_tr.shape, y_tr.shape)
                     # pval = 
 
-                    pv = SI_DV(X_tr, y_tr, Xval=X_te, yval=y_te,
-                                fraction=fraction, jth=rng.randint(0, d),
-                                zmin=-20., zmax=20,
-                                method=method, data_valuation="lava")
-
+                    # pv = SI_DV(X_tr, y_tr, Xval=X_te, yval=y_te,
+                    #             fraction=fraction, jth=rng.randint(0, d),
+                    #             zmin=-20., zmax=20,
+                    #             method=method, data_valuation="cg-score")
+                    runner = NaiveTest(fraction=fraction, data_valuation= dv)
+                    pv = runner.fit(X_tr, y_tr, Xval=X_te, yval=y_te, jth=rng.randint(0, d))
                     f.write(f"{pv}\n")
                     f.flush()
 

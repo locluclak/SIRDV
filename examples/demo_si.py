@@ -39,10 +39,10 @@ def generate(n, m, p, true_beta_s, true_beta_t, seed = None):
 
     return Xs, Xt, Ys, Yt, Sigma_s, Sigma_t
 
-def compute_pvalue_once(n=50, d=3, fraction=0.5, rng=None):
+def compute_pvalue_once(n=50, d=5, fraction=0.5, rng=None,i=0):
     """Generate one dataset and return one p-value."""
-    if rng is None:
-        rng = np.random.RandomState()
+    # if rng is None:
+    #     rng = np.random.RandomState()
 
     # X = rng.randn(n, d)
     # beta = np.zeros(d)
@@ -51,13 +51,13 @@ def compute_pvalue_once(n=50, d=3, fraction=0.5, rng=None):
 
     # # X, y = normalize_data(X, y)
     # X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=1)
-    true_beta_t = np.asarray([1]*d).reshape(-1,1)
-    true_beta_v = np.asarray([1]*d).reshape(-1,1)
-    X_tr, X_te, y_tr, y_te, St, Sv = generate(n, 15, d, true_beta_t, true_beta_v,seed=0)
+    true_beta_t = np.asarray([0]*d).reshape(-1,1)
+    true_beta_v = np.asarray([0]*d).reshape(-1,1)
+    X_tr, X_te, y_tr, y_te, St, Sv = generate(n, 15, d, true_beta_t, true_beta_v,seed=507)
     # print(X_tr.shape, y_tr.shape)
     pval = SI_DV(X_tr, y_tr, Xval=X_te, yval=y_te,
-                 fraction=fraction, jth=rng.randint(0, d), 
-                 zmin=-20., zmax=20,
+                 fraction=fraction, jth=None, 
+                 zmin=-20., zmax=20, lambda_=10, data_valuation="lava",
                  method="parametric",
                 #  method="overconditioning"
                  )
@@ -71,7 +71,8 @@ def main():
     rng = np.random.RandomState(seed=0)
     pvalues = []
     for i in range(n_iter):
-        pv = compute_pvalue_once(rng=rng)
+        pv = compute_pvalue_once(rng=rng,i=i)
+
         if not np.isnan(pv):
             pvalues.append(pv)
             print(f'pvalue {i}th {pv}')

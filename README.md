@@ -19,7 +19,7 @@ If Using System Python (Non-Anaconda)
 python replace_scipy_linprog.py --env python --dir files_to_replace
 ```
 
-# Old code below, read the DEBUG.md instead.
+# Old code below, do not read.
 
 # CG-DataPruning
 
