@@ -296,12 +296,56 @@ def decompose_y(y: np.ndarray, eta: np.ndarray, Sigma: np.ndarray) -> SIDecompos
         b=b,
     )
 def solve_Lasso(X, Y, Lambda):
+    """Solve Lasso and return an active set certified by its KKT conditions.
+
+    The parametric scan treats the returned active set as exact: it derives a
+    polyhedral region that must contain the current point.  A small duality
+    gap alone is insufficient near a Lasso knot, because coordinate descent
+    can stop at the all-zero model just after that model has ceased to be
+    optimal.  Validate the primal KKT residual before exposing the model.
+    """
+    X = np.asarray(X, dtype=float)
+    Y = np.asarray(Y, dtype=float).reshape(-1, 1)
     p = X.shape[1]
+    kkt_tolerance = 1e-9 * max(1.0, float(Lambda))
 
-    lasso = Lasso(alpha = Lambda / X.shape[0], fit_intercept=False, tol = 1e-10, max_iter=100000000)
-    lasso.fit(X, Y)
+    def kkt_violation(beta_hat: np.ndarray) -> float:
+        beta_flat = beta_hat.reshape(-1)
+        correlations = (X.T @ (Y - X @ beta_hat)).reshape(-1)
+        active = beta_flat != 0.0
 
-    beta_hat = lasso.coef_.reshape(p, 1)
+        active_violation = (
+            np.max(np.abs(correlations[active] - Lambda * np.sign(beta_flat[active])))
+            if np.any(active) else 0.0
+        )
+        inactive_violation = (
+            np.max(np.maximum(np.abs(correlations[~active]) - Lambda, 0.0))
+            if np.any(~active) else 0.0
+        )
+        return float(max(active_violation, inactive_violation))
+
+    # Retry with a tighter stopping criterion when the first coordinate-
+    # descent pass has a small duality gap but an incorrect support.
+    last_violation = np.inf
+    for tolerance in (1e-12, 1e-14):
+        lasso = Lasso(
+            alpha=Lambda / X.shape[0],
+            fit_intercept=False,
+            tol=tolerance,
+            max_iter=1_000_000,
+        )
+        lasso.fit(X, Y)
+        beta_hat = lasso.coef_.reshape(p, 1)
+        last_violation = kkt_violation(beta_hat)
+        if last_violation <= kkt_tolerance:
+            break
+    else:
+        raise RuntimeError(
+            "Lasso solver did not meet the KKT tolerance required for "
+            f"parametric inference (violation={last_violation:.3e}, "
+            f"tolerance={kkt_tolerance:.3e})."
+        )
+
     M = np.nonzero(beta_hat)[0]
     Mc = np.nonzero(beta_hat == 0)[0]
     sM = np.sign(beta_hat[M])

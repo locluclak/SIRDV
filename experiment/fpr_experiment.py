@@ -10,7 +10,7 @@ from si_for_cg.si_utils import generate
 import time
 
 def main():
-    ns = [50]
+    ns = [100,150]
     fraction_list = [0.2, 0.4, 0.6, 0.8]
     d_list = [4,5,6,7]
     d = 5
