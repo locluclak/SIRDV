@@ -12,6 +12,47 @@ from .si_types import SIDecomposition
 from sklearn.linear_model import Lasso
 
 mp.dps = 500
+
+def generate_contaminated_regression(
+    n_train: int = 80,
+    n_val: int = 20,
+    n_test: int = 2_000,
+    p: int = 5,
+    contamination: float = 0.30,
+    beta_clean: float = 1.0,
+    std_good: float = 1.0,
+    std_bad: float = 3.0,
+    seed: int | None = None,
+):
+    """Create a clean target domain plus harmful training observations.
+
+Validation and test use ``beta_clean``.  Contaminated training observations
+use a different conditional relationship and substantially higher noise.
+``is_clean`` is only an oracle diagnostic, never an input to LAVA or Lasso.
+"""
+    if not 0 <= contamination < 1:
+        raise ValueError("contamination must be in [0, 1).")
+
+    rng = np.random.default_rng(seed)
+    beta_clean = np.full(p,beta_clean)
+    beta_bad = -np.ones(p)
+
+    X_train = rng.normal(size=(n_train, p))
+    is_bad = rng.random(n_train) < contamination
+    noise_sd = np.where(is_bad, std_bad, std_good)
+    beta_per_row = np.where(is_bad[:, None], beta_bad, beta_clean)
+    y_train = (X_train * beta_per_row).sum(axis=1) + rng.normal(scale=noise_sd)
+
+    X_val = rng.normal(size=(n_val, p))
+    y_val = X_val @ beta_clean + rng.normal(scale=std_good, size=n_val)
+    X_test = rng.normal(size=(n_test, p))
+    y_test = X_test @ beta_clean + rng.normal(scale=std_good, size=n_test)
+
+    Sigmat = std_good**2 * np.eye(n_train)
+    Sigmav = std_good**2 * np.eye(n_val)
+    return X_train, y_train, X_val, y_val, X_test, y_test, Sigmat, Sigmav, ~is_bad
+
+
 def generate(n, m, p, true_beta_s, true_beta_t, seed = None):
     """return Xs, Xt, Ys, Yt, Sigma_s, Sigma_t"""
 
