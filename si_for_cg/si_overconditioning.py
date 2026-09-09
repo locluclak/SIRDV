@@ -20,7 +20,8 @@ def sort_conditioning(
     config: SIConfig, 
 ) -> list[tuple[float, float]]:
     S_basis_T = adapter.S_[:, basis_current].T
-    
+    # print('wcost',w_cost.shape)
+    nt = adapter.nt
     rhs = np.column_stack([
         u_cost[basis_current], 
         v_cost[basis_current], 
@@ -29,10 +30,9 @@ def sort_conditioning(
     rhs *= -1  # In-place negation
 
     lu, piv = lu_factor(S_basis_T)
-    scores = lu_solve((lu, piv), rhs)
-
-    scores *= 2.0
-    scores -= np.sum(scores, axis=0)
+    scores = lu_solve((lu, piv), rhs)[:nt]
+    
+    scores = scores * (1.0 + 1.0/(nt-1)) - np.sum(scores, axis=0)
 
     topreverse = top_indices[:-1]
     topremovefirst = top_indices[1:]
@@ -42,7 +42,6 @@ def sort_conditioning(
     utilde = diffs[:, 0]
     vtilde = diffs[:, 1]
     wtilde = diffs[:, 2]
-
     return solve_quad_list(utilde, vtilde, wtilde, z_debug=None)
 
 def CG_overconditioning_intervals(
@@ -50,6 +49,7 @@ def CG_overconditioning_intervals(
     decomposition: SIDecomposition,
     adapter: SelectionAdapter,
     config: SIConfig,
+    observed_selection: tuple[int, ...] =None, 
     fs: LassoInfo = None
 ) -> list[tuple[float, float]]:
     """
@@ -94,9 +94,11 @@ def CG_overconditioning_intervals(
     # print('qt', qt)
     # print('rt', rt)
     intervals = solve_quad_list(pt, qt, rt)
-    fs_itv = conditioning_Lasso(X, a_vec, b_vec, fs.lambda_, fs.M, fs.Mc, fs.sM)
-    cg_oc_itv = interval_intersection(intervals, fs_itv)
-    return cg_oc_itv
+    if fs:
+        fs_itv = conditioning_Lasso(X[observed_selection], a_vec.reshape(-1,1)[observed_selection], b_vec.reshape(-1,1)[observed_selection], fs.lambda_, fs.M, fs.Mc, fs.sM)
+        cg_oc_itv = interval_intersection(intervals, fs_itv)
+        return cg_oc_itv
+    return intervals
 def overconditioning_intervals(
     Xtrain: np.ndarray,
     Xval: np.ndarray,

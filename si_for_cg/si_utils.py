@@ -35,7 +35,7 @@ use a different conditional relationship and substantially higher noise.
 
     rng = np.random.default_rng(seed)
     beta_clean = np.full(p,beta_clean)
-    beta_bad = -np.ones(p)
+    beta_bad = np.zeros(p)
 
     X_train = rng.normal(size=(n_train, p))
     is_bad = rng.random(n_train) < contamination
@@ -48,7 +48,7 @@ use a different conditional relationship and substantially higher noise.
     X_test = rng.normal(size=(n_test, p))
     y_test = X_test @ beta_clean + rng.normal(scale=std_good, size=n_test)
 
-    Sigmat = std_good**2 * np.eye(n_train)
+    Sigmat = np.diag(noise_sd ** 2)
     Sigmav = std_good**2 * np.eye(n_val)
     return X_train, y_train, X_val, y_val, X_test, y_test, Sigmat, Sigmav, ~is_bad
 

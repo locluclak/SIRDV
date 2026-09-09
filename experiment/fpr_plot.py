@@ -11,15 +11,17 @@ def main():
     ns = [50, 100, 150, 200]
     alpha = 0.05
     methods = {
-        # "overconditioning": "overco",
-        # "parametric": "parame",
+        "overconditioning": "overco",
+        "parametric": "parame",
         "naive": "naive",
-        # "bonferroni": "naive"
+        "bonferroni": "naive",
+        "datasplit": "split"
     }
     fraction = 0.5
 
-    dv = 'cg-score'
-    output_dir = os.path.join(os.path.dirname(__file__), "..", "output2")
+    dv = 'lava'
+    # dv = 'cg-score'
+    output_dir = os.path.join(os.path.dirname(__file__), "..", "output8")
 
     print(f"{'n':>6s}  {'method':>18s}  {'valid':>6s}  {'rejected':>8s}  {'FPR':>6s}")
     print(f"{'------':>6s}  {'------------------':>18s}  {'------':>6s}  {'--------':>8s}  {'------':>6s}")
@@ -49,7 +51,7 @@ def main():
 
             valid = len(pvalues)
             if method_name == "bonferroni":
-                adj_pvalue = alpha / math.comb(n, int(fraction*n))
+                adj_pvalue = alpha / 2**8##math.comb(n, int(fraction*n))
                 rejected = sum(1 for pv in pvalues if pv <= adj_pvalue)
             else:
                 rejected = sum(1 for pv in pvalues if pv <= alpha)
@@ -64,8 +66,8 @@ def main():
 
     fig, ax = plt.subplots(figsize=(8, 5))
 
-    colors = {"overconditioning": "tab:green", "parametric": "tab:red", "naive": "tab:blue", "bonferroni": "tab:purple"}
-    markers = {"overconditioning": "o", "parametric": "o", "naive": "o", "bonferroni": "o"}
+    colors = {"overconditioning": "tab:green", "parametric": "tab:red", "naive": "tab:blue", "bonferroni": "tab:purple", "datasplit": "tab:orange"}
+    markers = {"overconditioning": "o", "parametric": "o", "naive": "o", "bonferroni": "o", "datasplit": "o"}
 
     for method_name, fpr_list in fpr_results.items():
         ax.plot(ns, fpr_list, marker=markers[method_name], color=colors[method_name],
@@ -75,7 +77,7 @@ def main():
     ax.set_xlabel("Sample size (n)")
     ax.set_ylabel("False Positive Rate")
     ax.set_title("FPR vs Sample Size under Null Hypothesis")
-    ax.set_ylim(0, 1.1)
+    ax.set_ylim(-0.01, 1.1)
     ax.set_xticks(ns)
     ax.legend()
     plt.tight_layout()

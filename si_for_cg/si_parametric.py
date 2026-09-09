@@ -17,6 +17,7 @@ from scipy.optimize import linprog
 from .si_adapter import SelectionAdapter
 from concurrent.futures import ThreadPoolExecutor
 
+import time
 
 def parametric_intervals_FS(
     Xtrain: np.ndarray,
@@ -33,7 +34,8 @@ def parametric_intervals_FS(
     if config.zmin >= config.zmax:
         raise ValueError("zmin must be smaller than zmax")
 
-
+    print('init para')
+    st = time.time()
     a_vec = decomposition.a.reshape(-1,1)
     b_vec = decomposition.b.reshape(-1,1)
 
@@ -57,6 +59,10 @@ def parametric_intervals_FS(
 
     z_obs = decomposition.etaT_y
 
+    print('end', time.time())
+
+    print('OT')
+    st = time.time()
     base_args = (S_, h_.reshape(-1), 
         wt.reshape(-1), rt.reshape(-1), ot.reshape(-1), 
         z_obs, adapter.basis
@@ -77,11 +83,19 @@ def parametric_intervals_FS(
     else:
         raise RuntimeError("Left and right paths do not meet at the observed basis")
     list_da_itv = list(reversed(left_path[1:])) + [joined_path] + right_path[1:]
+
+    print('end', time.time())
+
+    print('other OC')
+    st = time.time()
     zold = -50
+    zlog = -21
     for ml, mr, B in list_da_itv:
         z = ml + config.step
         while z < mr:
-            print(z)
+            if zlog != int(z):
+                zlog= int(z)
+                print(zlog)
             cost_z = wt + rt*z + ot*(z**2)
             selection_z, sorted_indices_z = adapter.select_with_known_basis(nt, S_, cost_z, B)
             M, Mc, sM = solve_Lasso(Xtrain[selection_z], (a_vec + b_vec*z)[selection_z], fs.lambda_)
@@ -111,6 +125,10 @@ def parametric_intervals_FS(
                 final_interval.extend(over)
 
     final_interval = interval_union(final_interval)
+
+    print('end', time.time())
+
+
     if not any(left <= z_obs <= right for left, right in final_interval):
         raise RuntimeError("Parametric selection region does not contain etaT_y")
     return final_interval
@@ -136,13 +154,14 @@ def cg_parametric_intervals_FS(
     z = config.zmin
 
     while z < config.zmax:
+        print(z)
         y_z = (a_vec + b_vec * z)
         selection_z = adapter.select(X, y_z)
         X_pruned_z = X[selection_z]
         M, Mc, sM = solve_Lasso(X_pruned_z, (a_vec + b_vec*z)[selection_z], fs.lambda_)
         
         interval_z = CG_overconditioning_intervals(X, decomposition, adapter, config)
-        fs_itv = conditioning_Lasso(X, a_vec, b_vec, fs.lambda_, M, Mc, sM)
+        fs_itv = conditioning_Lasso(X_pruned_z, a_vec.reshape(-1,1)[selection_z], b_vec.reshape(-1,1)[selection_z], fs.lambda_, M, Mc, sM)
 
         over = interval_intersection(interval_z, fs_itv)
         matched = False
@@ -663,7 +682,7 @@ def parametric_intervals(
             # print('basis', B)
         z = ml + config.step
         while z < mr:
-            print(z)
+            # print(z)
             cost_z = wt + rt*z + ot*(z**2)
             # S_ = adapter.S_.copy()
             selection_z, sorted_indices_z = adapter.select_with_known_basis(nt, S_, cost_z, B)

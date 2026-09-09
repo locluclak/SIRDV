@@ -1,26 +1,30 @@
 import numpy as np
 import os
 import sys
-
+import traceback
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sklearn.model_selection import train_test_split
-from si_for_cg import SI_DV, NaiveTest
-from si_for_cg.si_utils import generate
-
+from si_for_cg import SI_DV, NaiveTest, FSNaiveTest,  DataSplittingTest
+from si_for_cg.si_utils import generate, generate_contaminated_regression
+#output6 - std bad = 3 lamda =10 d =8
+#output7 - std bad = 2 lamda =10 d =10
 
 def main():
     ns = 50
-    beta = [2,1.5,1, 0.5]
-    d = 3
+    beta = [2, 1.5, 1.0, 0.5]
+    d = 10
     fraction = 0.5
     iters = 120
     alpha = 0.05
-    # dv = "lava"
-    dv = "cg-score"
-    os.makedirs(os.path.join(os.path.dirname(__file__), "..", "output"), exist_ok=True)
+    lambda_ = 10
+    dv = "lava"
+    # dv = "cg-score"
+    con = 0.5
+    outputdir = "output7"
+    os.makedirs(os.path.join(os.path.dirname(__file__), "..", outputdir), exist_ok=True)
 
-    for method in ["naive"]:
+    for method in ['overconditioning']:
         print(f"\n{'='*60}")
         print(f"Method: {method}")
         print(f"{'='*60}")
@@ -28,28 +32,51 @@ def main():
         for b in beta:
             print(f"\n--- beta={b} ---")
             fname = f"tpr_{dv}_{method[:6]}_beta{b}.txt"
-            fpath = os.path.join(os.path.dirname(__file__), "..", "output", fname)
+            fpath = os.path.join(os.path.dirname(__file__), "..", outputdir, fname)
             valid_count = 0
             rejected_count = 0
 
-            with open(fpath, "w") as f:
-                for i in range(iters):
+            with open(fpath, "a") as f:
+                i=0
+                seedd = 0
+                while i < iters:
+                    seedd+=1
                     print('seed', i)
-                    rng = np.random.RandomState(seed=i)
+                    # rng = np.random.RandomState(seed=i)
                     true_beta_t = np.asarray([b]*d).reshape(-1,1)
                     true_beta_v = np.asarray([b]*d).reshape(-1,1)
-                    X_tr, X_te, y_tr, y_te, St, Sv = generate(ns, 15, d, true_beta_t, true_beta_v,seed=i)
+                    # X_tr, X_te, y_tr, y_te, St, Sv = generate(ns, 15, d, true_beta_t, true_beta_v,seed=seedd)
+                    X_tr, y_tr, X_val, y_val, X_test, y_test, Sigmat, Sigmav, is_clean = generate_contaminated_regression(
+                        n_train=ns, n_val=15, n_test=0, p=d, contamination=con, beta_clean=b, std_good=1.0, std_bad=2.0, seed=seedd
+                            )
                     # print(X_tr.shape, y_tr.shape)
                     # pval = 
 
-                    # pv = SI_DV(X_tr, y_tr, Xval=X_te, yval=y_te,
-                    #             fraction=fraction, jth=rng.randint(0, d),
-                    #             zmin=-20., zmax=20,
-                    #             method=method, data_valuation="cg-score")
-                    runner = NaiveTest(fraction=fraction, data_valuation= dv)
-                    pv = runner.fit(X_tr, y_tr, Xval=X_te, yval=y_te, jth=rng.randint(0, d))
+                    try:
+                    # if 1:
+                        if method == "naive":
+                            runner = FSNaiveTest(fraction=fraction, data_valuation= dv, 
+                                                    # lambda_= lambda_
+                                                    )
+                            pv = runner.fit(X_tr, y_tr, Xval=X_val, yval=y_val,Sigmat=Sigmat, Sigmav=Sigmav, jth=None)
+                        elif method == 'split':
+                            runner = DataSplittingTest(fraction=fraction, data_valuation= dv, split_ratio= 0.2, 
+                                                    # lambda_= lambda_
+                                                    )
+                            pv = runner.fit(X_tr, y_tr, Xval=X_val, yval=y_val, Sigmat=Sigmat, Sigmav=Sigmav, jth=None)                            
+                        else:
+                            pv = SI_DV(X_tr, y_tr, Xval=X_val, yval=y_val,
+                                        fraction=fraction, jth=None,
+                                        zmin=-20., zmax=20, lambda_= lambda_,
+                                        method=method, data_valuation=dv, Sigmat=Sigmat, Sigmav=Sigmav)
+
+                    except Exception as error:
+                        print(f"An error occurred: {error}")
+                        traceback.print_exc()  # Prints the full traceback with line numbers directly
+                        continue
                     f.write(f"{pv}\n")
                     f.flush()
+                    i+=1
 
                     if not np.isnan(pv):
                         valid_count += 1

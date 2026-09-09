@@ -1,7 +1,7 @@
 import numpy as np 
+import time
+from .LPsolver import HIGHS_LPsolver
 from scipy.optimize import linprog
-
-
 def basis_is_optimal(S_, h_, cost, basis, tol: float = 1e-8) -> bool:
     """Check primal and dual feasibility of an OT basis for a fixed LP."""
     S_ = np.asarray(S_, dtype=float)
@@ -86,15 +86,14 @@ def solveOT(ns, nt, S_, h_, X_, basis_hint=None):
     p = X_.shape[1] - 1 
     for i in range(p+1):
         cost += np.dot(OMEGA , X_[:, [i]]) * np.dot(OMEGA , X_[:, [i]])
-        # if i==p-1:
-        # print('origin cost c_', np.sum(cost))
-    # print('cost', np.sum(cost))
-    # Solve wasserstein distance
-    # ``bounds`` is the non-negativity constraint T >= 0.  Do not add the
-    # equivalent -T <= 0 rows: they are redundant and let the two-phase
-    # simplex choose different degenerate bases after presolve.  Bland's rule
-    # makes the remaining pivot tie-break deterministic along the z path.
+
     print('begin')
+    st = time.time()
+    # res = HIGHS_LPsolver(cost,
+    #                      A_eq=S_,
+    #                      b_eq=h_,
+    #                      bounds=(0, None),
+    #                      maxiter=100_000)
     res = linprog(cost,
                   bounds=(0, None),
                 #   A_ub = - np.identity(ns * nt), b_ub = np.zeros((ns * nt, 1)), 
@@ -105,18 +104,11 @@ def solveOT(ns, nt, S_, h_, X_, basis_hint=None):
                         #    'bland': True,
                         #    'presolve': False
                            })
-    print('end')
+    print('end time LP:', time.time() - st)
     if not res.success:
         raise RuntimeError(f"Optimal transport LP failed: {res.message}")
     # Transport Map
     Tobs = res.x.reshape((ns,nt))
     gamma = constructGamma(ns, nt, Tobs)
-    # At a degenerate vertex, multiple bases encode the same transport plan.
-    # OC conditions on the observed basis, so retain it whenever it is still
-    # optimal for this cost instead of replacing it with an arbitrary zero-arc
-    # basis reached by a fresh simplex run.
     basis = res.basis
-    # if basis_hint is not None and basis_is_optimal(S_, h_, cost, basis_hint):
-    #     print('use basis hint')
-    #     basis = np.asarray(basis_hint, dtype=int)
     return {"gamma": gamma, "basis": basis, "cost": cost,}

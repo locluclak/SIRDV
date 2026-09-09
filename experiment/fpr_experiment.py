@@ -5,24 +5,26 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sklearn.model_selection import train_test_split
-from si_for_cg import SI_DV, NaiveTest, FSNaiveTest
+from si_for_cg import SI_DV, NaiveTest, FSNaiveTest, DataSplittingTest
 from si_for_cg.si_utils import generate
 import time
-
+import traceback
 def main():
-    ns = [100,150]
+    ns = [200,150,100,50]
     fraction_list = [0.2, 0.4, 0.6, 0.8]
     d_list = [4,5,6,7]
-    d = 5
+    d = 10
     fraction = 0.5
     iters = 120
     alpha = 0.05
     dv = "lava"
+    # dv = "cg-score"
     n = 50
     lambda_ = 10
-    os.makedirs(os.path.join(os.path.dirname(__file__), "..", "output3"), exist_ok=True)
+    outputdir = 'output8'
+    os.makedirs(os.path.join(os.path.dirname(__file__), "..", outputdir), exist_ok=True)
 
-    for method in ['parametric']:
+    for method in ['overconditioning']:
         print(f"\n{'='*60}")
         print(f"Method: {method}")
         print(f"{'='*60}")
@@ -33,7 +35,7 @@ def main():
             fname = f"fpr_{dv}FS_{method[:6]}_n{n}_lambda{lambda_}.txt"
             # fname = f"fpr_{dv}FS_{method[:6]}_d{d}_lambda{lambda_}.txt"
             # fname = f"fpr_{dv}_{method[:6]}_fraction{fraction}.txt"
-            fpath = os.path.join(os.path.dirname(__file__), "..", "output3", fname)
+            fpath = os.path.join(os.path.dirname(__file__), "..", outputdir, fname)
             valid_count = 0
             rejected_count = 0
 
@@ -51,18 +53,25 @@ def main():
                     # pval = 
                     start_t = time.time()
                     try:
-                        if method != "naive":
+                        if method == "naive":
+                            runner = FSNaiveTest(fraction=fraction, data_valuation= dv, 
+                                                    lambda_= lambda_
+                                                    )
+                            pv = runner.fit(X_tr, y_tr, Xval=X_te, yval=y_te, jth=None)
+                        elif method == 'split':
+                            runner = DataSplittingTest(fraction=fraction, data_valuation= dv, split_ratio= 0.3, 
+                                                    lambda_= lambda_
+                                                    )
+                            pv = runner.fit(X_tr, y_tr, Xval=X_te, yval=y_te, jth=None)    
+                        else:
                             pv = SI_DV(X_tr, y_tr, Xval=X_te, yval=y_te,
                                         fraction=fraction, jth=None,
                                         zmin=-20., zmax=20,
                                         method=method, data_valuation=dv)
-                        else:
-                            runner = FSNaiveTest(fraction=fraction, data_valuation= dv, 
-                                                    # lambda_= lambda_
-                                                    )
-                            pv = runner.fit(X_tr, y_tr, Xval=X_te, yval=y_te, jth=None)
+
                     except Exception as error:
                         print(f"An error occurred: {error}")
+                        traceback.print_exc()  # Prints the full traceback with line numbers directly
                         continue
                     end_t = time.time()
                     with open('output3/time'+fname, 'a') as ftime:

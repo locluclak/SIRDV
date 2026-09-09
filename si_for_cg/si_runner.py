@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from .si_overconditioning import CG_overconditioning_intervals, overconditioning_intervals
-from .si_parametric import parametric_intervals, traditional_parametric_intervals, cg_parametric_intervals, ocwithz_intervals, parametric_intervals_FS
+from .si_parametric import parametric_intervals, traditional_parametric_intervals, cg_parametric_intervals, ocwithz_intervals, parametric_intervals_FS, cg_parametric_intervals_FS
 from .si_types import SIConfig, SIResult, SelectionAdapter, LassoInfo
 from .si_utils import compute_p_value, decompose_y, interval_union
 from . import param
@@ -27,9 +27,10 @@ def selective_inference(
 ) -> SIResult:
     """Run selective inference for any adapter with a ``select`` method."""
     config = SIConfig() if config is None else config
-
     if config.data_valuation == 'lava':
         y = np.concatenate([ytrain, yval])
+        # print(y.shape)
+        # print(Sigma.shape)
         decomposition = decompose_y(y, eta, Sigma)
         if method == "parametric":
             intervals = parametric_intervals_FS(Xtrain, Xval, decomposition, 
@@ -48,10 +49,10 @@ def selective_inference(
         y = ytrain
         decomposition = decompose_y(y, eta, Sigma)
         if method == "parametric":
-            intervals = cg_parametric_intervals(X=Xtrain, decomposition=decomposition, adapter=adapter, observed_selection=observed_selection, config=config,fs=fs)
+            intervals = cg_parametric_intervals_FS(X=Xtrain, decomposition=decomposition, adapter=adapter, observed_selection=observed_selection, config=config,fs=fs)
         elif method == "overconditioning":
 
-            intervals = CG_overconditioning_intervals(X=Xtrain, decomposition=decomposition, adapter=adapter, config=config,fs=fs)
+            intervals = CG_overconditioning_intervals(X=Xtrain, decomposition=decomposition, adapter=adapter, config=config,observed_selection=observed_selection,fs=fs)
             # print('Final interval',intervals)
         else:
             raise ValueError("method must be 'parametric' or 'overconditioning'")

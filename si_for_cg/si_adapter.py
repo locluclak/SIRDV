@@ -19,6 +19,7 @@ class CGSelectionAdapter:
     invH: np.ndarray | None = None
 
     def select(self, X: np.ndarray, y: np.ndarray) -> tuple[int, ...]:
+        y = y.reshape(-1)
         if self.invH is None:
             scores, H, invH = calc_cg_score(X, y, normalize=False, return_gram=True)
             self.invH = invH
@@ -29,9 +30,9 @@ class CGSelectionAdapter:
             n_keep = max(1, int(len(scores) * self.fraction))
         else:
             n_keep = self.fraction
+
         self.sorted_indices = np.argsort(scores)
         self.top_indices = self.sorted_indices[-n_keep:]
-
         return list(int(idx) for idx in sorted(self.top_indices))
 
 @dataclass
