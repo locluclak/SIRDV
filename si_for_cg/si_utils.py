@@ -7,11 +7,17 @@ from typing import Any
 import numpy as np
 from mpmath import mp
 from numpy.linalg import lstsq
+from scipy.linalg import toeplitz
 
 from .si_types import SIDecomposition
 from sklearn.linear_model import Lasso
 
-mp.dps = 500
+# 30 significant digits are sufficient for every p-value CDF: the masses in
+# compute_p_value are evaluated in tail form (no `1 - tiny` subtraction), so
+# mpmath returns each far-tail piece with full `mp.dps` significant digits
+# regardless of its magnitude.  Raise this only if some consumer needs more
+# digits of the accumulated sums themselves.
+mp.dps = 30
 
 def generate_contaminated_regression(
     n_train: int = 80,
@@ -52,6 +58,46 @@ use a different conditional relationship and substantially higher noise.
     Sigmav = std_good**2 * np.eye(n_val)
     return X_train, y_train, X_val, y_val, X_test, y_test, Sigmat, Sigmav, ~is_bad
 
+
+
+
+def generate_correlated(
+    n, m, p, true_beta_s, true_beta_t, rho=0.5, seed=None
+):
+    """Generates synthetic domain adaptation data where target and source noise
+
+    follow an AR(1) covariance structure: \Xi = [\rho^{|i-j|}]_{ij}.
+
+    Returns: Xs, Xt, Ys, Yt, Sigma_s, Sigma_t
+    """
+    if seed is not None:
+        np.random.seed(seed)
+
+    # 1. Generate design matrices
+    Xs = np.random.normal(loc=0, scale=1, size=(n, p))
+    Xt = np.random.normal(loc=0, scale=1, size=(m, p))
+
+    # 2. Compute true signals
+    mu_s = Xs.dot(true_beta_s)
+    mu_t = Xt.dot(true_beta_t)
+
+    # 3. Construct Toeplitz covariance matrices: \Xi_{i,j} = \rho^|i-j|
+    Sigma_s = toeplitz(rho ** np.arange(n))
+    Sigma_t = toeplitz(rho ** np.arange(m))
+
+    # 4. Generate correlated noise from Multivariate Normal distributions
+    noise_s = np.random.multivariate_normal(
+        mean=np.zeros(n), cov=Sigma_s
+    ).reshape(n, 1)
+    noise_t = np.random.multivariate_normal(
+        mean=np.zeros(m), cov=Sigma_t
+    ).reshape(m, 1)
+
+    # 5. Add correlated noise to response variables
+    Ys = mu_s + noise_s
+    Yt = mu_t + noise_t
+
+    return Xs, Xt, Ys, Yt, Sigma_s, Sigma_t
 
 def generate(n, m, p, true_beta_s, true_beta_t, seed = None):
     """return Xs, Xt, Ys, Yt, Sigma_s, Sigma_t"""
@@ -117,26 +163,22 @@ def interval_intersection(intervals1: list[tuple[float, float]], intervals2: lis
 
     return result
 def solve_linear_inequality(b, c):
-    """Solve the linear inequality b*x + c <= 0. b and c are vectors"""
-    left = -np.inf
-    right = np.inf
-    for bi, ci in zip(b, c):
-        bi = bi.item()
-        ci = ci.item()
-        if abs(bi) < 1e-12:
-            bi = 0
-        if abs(ci) < 1e-12:
-            ci = 0
-        if bi == 0:
-            if ci <= 0:
-                continue
-            else:
-                raise ValueError("No solution for the linear inequality")
-        elif bi > 0:
-            right = min(right, -ci / bi)
-        else:
-            left = max(left, -ci / bi)
+    """Solve the linear inequalities ``b_i*x + c_i <= 0`` (vectorized).
 
+    Coefficients with ``|v| < 1e-12`` are treated as zero, exactly like the
+    previous scalar loop; ``b == 0`` with ``c > 0`` is infeasible.  Returns
+    the single containing interval ``[(left, right)]`` or ``[]``.
+    """
+    b = np.asarray(b, dtype=float).reshape(-1)
+    c = np.asarray(c, dtype=float).reshape(-1)
+    b = np.where(np.abs(b) < 1e-12, 0.0, b)
+    c = np.where(np.abs(c) < 1e-12, 0.0, c)
+    if np.any((b == 0) & (c > 0)):
+        raise ValueError("No solution for the linear inequality")
+    pos = b > 0
+    neg = b < 0
+    right = float(np.min(-c[pos] / b[pos])) if np.any(pos) else np.inf
+    left = float(np.max(-c[neg] / b[neg])) if np.any(neg) else -np.inf
     if left > right:
         return []
     return [(left, right)]
@@ -233,43 +275,110 @@ def solve_quadratic_roots(a, b, c, current_z, goal, direction=1):
 
 
 def solve_quad_list(p, q, r, z_debug=None):
-    """Solve a list of quadratic ax^2 + bx + c <= 0 inequalities and return their intersection."""
-    if len(p) == 0:
+    """Intersection of ``p_i*x^2 + q_i*x + r_i <= 0`` over vector inputs.
+
+    Vectorized replacement of the previous per-inequality Python loop; the
+    per-inequality conventions match ``solve_quadratic_inequality``
+    exactly (1e-9 coefficient cutoffs, roots
+    ``x1 = (-b - sqrt(delta)) / (2a)``, ``x2 = (-b + sqrt(delta)) / (2a)``).
+
+    Every concave solution set ``(-inf, x2] U [x1, inf)`` is handled as the
+    complement of the open hole ``(x2, x1)``, so the whole intersection is
+    one interval minus a set of open holes, subtracted with closed-piece
+    arithmetic.  Output is the same sorted closed-piece list as before.
+    """
+    p = np.asarray(p, dtype=float).reshape(-1)
+    q = np.asarray(q, dtype=float).reshape(-1)
+    r = np.asarray(r, dtype=float).reshape(-1)
+    if p.size == 0:
         return [(-np.inf, np.inf)]
-    intervals = [(-np.inf, np.inf)]
-    for pi, qi, ri in zip(p, q, r):
-        # print("iteration", pi, qi, ri)
-        intervals_i = solve_quadratic_inequality(pi.item(), qi.item(), ri.item())
-        if intervals_i is None:
-            print('Error in solving quadratic ineq')
-            return []
-        a = pi.item()
-        b = qi.item()
-        c = ri.item()
-        if z_debug is not None:
-            val = a*z_debug*z_debug + b*z_debug + c
 
-            contains = any(
-                lo <= z_debug <= hi
-                for lo, hi in intervals_i
-            )
+    a = np.where(np.abs(p) < 1e-9, 0.0, p)
+    b = np.where(np.abs(q) < 1e-9, 0.0, q)
+    c = np.where(np.abs(r) < 1e-9, 0.0, r)
 
+    if z_debug is not None:
+        for pi_, qi_, ri_ in zip(p, q, r):
+            itv = solve_quadratic_inequality(float(pi_), float(qi_), float(ri_))
+            val = float(pi_) * z_debug * z_debug + float(qi_) * z_debug + float(ri_)
+            contains = any(lo <= z_debug <= hi for lo, hi in itv)
             print(
-                # f"[{idx}] "
-                f"a={a:.18e}, "
-                f"b={b:.18e}, "
-                f"c={c:.18e}"
+                f"a={float(pi_):.18e}, "
+                f"b={float(qi_):.18e}, "
+                f"c={float(ri_):.18e}"
             )
             print(
                 f"    f(z)={val:.18e}, "
-                f"interval={intervals_i}, "
+                f"interval={itv}, "
                 f"contains_z={contains}"
             )
-        intervals = interval_intersection(intervals, intervals_i)
-        if not intervals:
+
+    lin = a == 0.0
+    if np.any(lin & (b == 0.0) & (c > 0.0)):
+        print('Error bx + c')
+        print('Error in solving quadratic ineq')
+        return []
+
+    quad = ~lin
+    delta = b * b - 4.0 * a * c
+    real = delta >= 0.0
+    if np.any(quad & ~real & (a > 0.0)):
+        print("Error to find interval. ")
+        print('Error in solving quadratic ineq')
+        return []
+
+    lo_list, hi_list = [], []
+    m = lin & (b > 0.0)                      # (-inf, -c/b]
+    if m.any():
+        lo_list.append(np.full(int(m.sum()), -np.inf))
+        hi_list.append(-c[m] / b[m])
+    m = lin & (b < 0.0)                      # [-c/b, inf)
+    if m.any():
+        lo_list.append(-c[m] / b[m])
+        hi_list.append(np.full(int(m.sum()), np.inf))
+    qi = np.flatnonzero(quad & real & (a > 0.0))   # [x1, x2]
+    if qi.size:
+        av, bv, cv = a[qi], b[qi], c[qi]
+        sq = np.sqrt(bv * bv - 4.0 * av * cv)
+        lo_list.append((-bv - sq) / (2.0 * av))
+        hi_list.append((-bv + sq) / (2.0 * av))
+
+    left = float(np.max(np.concatenate(lo_list))) if lo_list else -np.inf
+    right = float(np.min(np.concatenate(hi_list))) if hi_list else np.inf
+    if left > right:
+        print('Error intersection')
+        return []
+
+    hi_ = np.flatnonzero(quad & real & (a < 0.0))  # complement of open hole
+    if hi_.size:
+        av, bv, cv = a[hi_], b[hi_], c[hi_]
+        sq = np.sqrt(bv * bv - 4.0 * av * cv)
+        x1 = (-bv - sq) / (2.0 * av)
+        x2 = (-bv + sq) / (2.0 * av)
+        order = np.argsort(x2, kind="stable")
+        pieces_l, pieces_r = np.array([left]), np.array([right])
+        for hl, hr in zip(x2[order], x1[order]):
+            hl, hr = float(hl), float(hr)
+            if hl == hr:                     # empty hole: no constraint
+                continue
+            keep = ~((pieces_l < hr) & (pieces_r > hl))
+            split = (pieces_l < hr) & (pieces_r > hl)
+            new_l, new_r = pieces_l[keep], pieces_r[keep]
+            if split.any():
+                ls, rs = pieces_l[split], pieces_r[split]
+                ok_l = ls <= hl              # [ls, hl]
+                ok_r = rs >= hr              # [hr, rs]
+                new_l = np.concatenate([new_l, ls[ok_l], np.full(int(ok_r.sum()), hr)])
+                new_r = np.concatenate([new_r, np.full(int(ok_l.sum()), hl), rs[ok_r]])
+            pieces_l, pieces_r = new_l, new_r
+        if pieces_l.size == 0:
             print('Error intersection')
             return []
-    return intervals
+        order = np.argsort(pieces_l, kind="stable")
+        return [(float(l), float(rr))
+                for l, rr in zip(pieces_l[order], pieces_r[order])]
+
+    return [(left, right)]
 
 def compute_p_value(
     intervals: list[tuple[float, float]],
@@ -278,38 +387,69 @@ def compute_p_value(
     null_mean: float = 0.0,
     type: str = "two-sided",
 ) -> float:
-    """Compute the two-sided truncated-normal p-value on ``intervals``."""
+    """Compute the two-sided truncated-normal p-value on ``intervals``.
+
+    The raw scan output can contain hundreds of adjacent or overlapping
+    pieces, so the union is merged first (one `mp.ncdf` pair per merged
+    piece instead of per raw piece).  Every piece mass is evaluated in
+    tail form so no ``1 - tiny`` subtraction is ever formed: for standard
+    bounds ``z_l <= z_r``, ``Phi(z_r) - Phi(z_l)`` is computed as
+    ``ncdf(-z_l) - ncdf(-z_r)`` when the piece touches the right side and
+    ``ncdf(z_r) - ncdf(z_l)`` when it touches the left side.  mpmath
+    returns each far tail with full ``mp.dps`` significant digits, so
+    far-tail masses survive at modest precision, and the probability
+    mass below/above ``etaT_y`` is accumulated directly instead of as a
+    difference of near-equal CDFs (which is what made large ``mp.dps``
+    necessary before).
+    """
     if etaT_Sigma_eta <= 0:
         raise ValueError("etaT_Sigma_eta must be positive")
 
-    # print('etaTy', etaT_y)
-    
     if not intervals:
         return float("nan")
 
+    intervals = interval_union(intervals)
     if not any(left <= etaT_y <= right for left, right in intervals):
         raise ValueError("Selection intervals must contain the observed etaT_y")
 
     sigma = np.sqrt(etaT_Sigma_eta)
-    denominator = mp.mpf("0")
-    numerator = mp.mpf("0")
-    # print('compute_p_value', etaT_y)
-    for left, right in intervals:
-        cdf_left = mp.ncdf((left - null_mean) / sigma)
-        cdf_right = mp.ncdf((right - null_mean) / sigma)
-        if left <= etaT_y <= right:
-            numerator = denominator + mp.ncdf((etaT_y - null_mean) / sigma) - cdf_left
-        denominator += cdf_right - cdf_left
 
-    if denominator == 0:
+    def _mass(z_l, z_r):
+        # Phi(z_r) - Phi(z_l) in tail form (z_l <= z_r)
+        if z_r <= 0:
+            return mp.ncdf(z_r) - mp.ncdf(z_l)
+        return mp.ncdf(-z_l) - mp.ncdf(-z_r)
+
+    total = mp.mpf("0")
+    below = mp.mpf("0")
+    above = mp.mpf("0")
+    z_t = (etaT_y - null_mean) / sigma
+    for left, right in intervals:
+        z_l = (left - null_mean) / sigma
+        z_r = (right - null_mean) / sigma
+        if z_t >= z_r:          # piece entirely at/below the statistic
+            m = _mass(z_l, z_r)
+            below += m
+            total += m
+        elif z_t <= z_l:        # piece entirely at/above the statistic
+            m = _mass(z_l, z_r)
+            above += m
+            total += m
+        else:                   # containing piece: split at the statistic
+            mb = _mass(z_l, z_t)
+            ma = _mass(z_t, z_r)
+            below += mb
+            above += ma
+            total += mb + ma
+
+    if total == 0:
         return float("nan")
 
-    cdf = numerator / denominator
-
     if type == "two-sided":
-        return float(2 * min(cdf, 1 - cdf))
+        # min(below, above) == min(cdf, 1 - cdf) without the subtraction
+        return float(2 * min(below, above) / total)
     elif type == "one-sided":
-        return float(cdf)
+        return float(below / total)
 
 def decompose_y(y: np.ndarray, eta: np.ndarray, Sigma: np.ndarray) -> SIDecomposition:
     """Build the standard selective-inference decomposition for ``y``."""
