@@ -87,7 +87,7 @@ def solveOT(ns, nt, S_, h_, X_, basis_hint=None):
     for i in range(p+1):
         cost += np.dot(OMEGA , X_[:, [i]]) * np.dot(OMEGA , X_[:, [i]])
 
-    print('begin')
+    # print('begin')
     st = time.time()
     # res = HIGHS_LPsolver(cost,
     #                      A_eq=S_,
@@ -104,7 +104,7 @@ def solveOT(ns, nt, S_, h_, X_, basis_hint=None):
                         #    'bland': True,
                         #    'presolve': False
                            })
-    print('end time LP:', time.time() - st)
+    # print('end time LP:', time.time() - st)
     if not res.success:
         raise RuntimeError(f"Optimal transport LP failed: {res.message}")
     # Transport Map

@@ -42,6 +42,7 @@ def sort_conditioning(
     utilde = diffs[:, 0]
     vtilde = diffs[:, 1]
     wtilde = diffs[:, 2]
+    print(utilde)
     return solve_quad_list(utilde, vtilde, wtilde, z_debug=None)
 
 def CG_overconditioning_intervals(

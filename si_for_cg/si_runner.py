@@ -5,7 +5,8 @@ from __future__ import annotations
 import numpy as np
 
 from .si_overconditioning import CG_overconditioning_intervals, overconditioning_intervals
-from .si_parametric import parametric_intervals, traditional_parametric_intervals, cg_parametric_intervals, ocwithz_intervals, parametric_intervals_FS, cg_parametric_intervals_FS
+from .si_parametric import (parametric_intervals, traditional_parametric_intervals, cg_parametric_intervals, ocwithz_intervals, parametric_intervals_FS,
+                            parametric_intervals_FS_nested, cg_parametric_intervals_FS, cg_parametric_intervals_FS_nested)
 from .si_types import SIConfig, SIResult, SelectionAdapter, LassoInfo
 from .si_utils import compute_p_value, decompose_y, interval_union
 from . import param
@@ -35,6 +36,10 @@ def selective_inference(
         if method == "parametric":
             intervals = parametric_intervals_FS(Xtrain, Xval, decomposition, 
                                                    adapter, observed_selection, config, fs)
+        elif method == "parametric_nested":
+            intervals = parametric_intervals_FS_nested(Xtrain, Xval, decomposition,
+                                                       adapter,
+                                                       config, fs)
         elif method == "overconditioning":
 
             intervals = overconditioning_intervals(Xtrain, Xval, decomposition, 
@@ -50,6 +55,8 @@ def selective_inference(
         decomposition = decompose_y(y, eta, Sigma)
         if method == "parametric":
             intervals = cg_parametric_intervals_FS(X=Xtrain, decomposition=decomposition, adapter=adapter, observed_selection=observed_selection, config=config,fs=fs)
+        elif method == "parametric_nested":
+            intervals = cg_parametric_intervals_FS_nested(X=Xtrain, decomposition=decomposition, adapter=adapter, config=config, fs=fs)
         elif method == "overconditioning":
 
             intervals = CG_overconditioning_intervals(X=Xtrain, decomposition=decomposition, adapter=adapter, config=config,observed_selection=observed_selection,fs=fs)

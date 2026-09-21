@@ -11,7 +11,7 @@ from .lava_function import calc_lava_score
 from .gram_matrix import build_gram_matrix
 from .si_runner import selective_inference
 from .si_types import SIConfig, SIResult, LassoInfo
-from .si_adapter import CGSelectionAdapter, SelectionAdapter, make_eta, make_eta_cg, make_etaFS, make_eta_cgFS
+from .si_adapter import CGSelectionAdapter, SelectionAdapter, make_eta, make_eta_cg, make_etaFS, make_eta_cgFS, make_naive_etaFS
 from .si_utils import compute_p_value, decompose_y, solve_Lasso
 from sklearn.linear_model import Lasso
 from scipy.linalg import block_diag
@@ -82,7 +82,9 @@ class DataSplittingTest:
         # print(observed_selection)
         X_pruned = Xtrain_arr[observed_selection].copy()
         lasso = Lasso(alpha = self.lambda_ / X_pruned.shape[0], fit_intercept=False, tol = 1e-10, max_iter=100000000)
-        lasso.fit(X_pruned, ytrain_arr[observed_selection])
+        y_pruned = ytrain_arr[observed_selection]
+        lasso.fit(X_pruned, y_pruned)
+        # Sigma_arr_pruned = Sigma_arr[np.ix_(observed_selection, observed_selection)]
         p = Xtrain_arr.shape[1]
 
         beta_hat = lasso.coef_.reshape(p, 1)
@@ -104,7 +106,7 @@ class DataSplittingTest:
             # print("test statistic", eta.T.dot(np.concatenate((ytrain_arr, yval_arr), axis=0)))
             # y = np.concatenate([ytrain, yval])
             # X = np.vstack([Xtrain_arr, Xval_arr])
-            eta = make_eta_cgFS(X= X_test, y= y_test,
+            eta = make_naive_etaFS(X_pruned= X_test, y= y_test,
                             # obs_selection = observed_selection,
                             M = M,
                             j = tested_position)
@@ -173,7 +175,9 @@ class FSNaiveTest:
         # print(observed_selection)
         X_pruned = Xtrain_arr[observed_selection].copy()
         lasso = Lasso(alpha = self.lambda_ / X_pruned.shape[0], fit_intercept=False, tol = 1e-10, max_iter=100000000)
-        lasso.fit(X_pruned, ytrain_arr[observed_selection])
+        y_pruned= ytrain_arr[observed_selection]
+        Sigma_arr_pruned = Sigma_arr[np.ix_(observed_selection, observed_selection)]
+        lasso.fit(X_pruned, y_pruned)
         p = Xtrain_arr.shape[1]
 
         beta_hat = lasso.coef_.reshape(p, 1)
@@ -195,19 +199,19 @@ class FSNaiveTest:
             # print("test statistic", eta.T.dot(np.concatenate((ytrain_arr, yval_arr), axis=0)))
             y = np.concatenate([ytrain, yval])
             X = np.vstack([Xtrain_arr, Xval_arr])
-            eta = make_eta_cgFS(X= Xtrain_arr, y= ytrain_arr,
+            eta = make_naive_etaFS(X_pruned= X_pruned, y= y_pruned,
                             # obs_selection = observed_selection,
                             M = M,
                             j = tested_position)
-            decomposition = decompose_y(ytrain_arr, eta, Sigma_arr)   
+            decomposition = decompose_y(y_pruned, eta, Sigma_arr_pruned)   
         elif self.data_valuation == 'cg-score':
             
-            eta = make_eta_cgFS(X= Xtrain_arr, y= ytrain_arr,
+            eta = make_naive_etaFS(X_pruned= X_pruned, y= y_pruned,
                                         # obs_selection = observed_selection,
                                         M = M,
                                         j = tested_position)
             y = ytrain
-            decomposition = decompose_y(y, eta, Sigma_arr)
+            decomposition = decompose_y(y_pruned, eta, Sigma_arr_pruned)
         intervals = [(-np.inf, np.inf)]
         p_value = compute_p_value(intervals, 
                             decomposition.etaT_y, decomposition.etaT_Sigma_eta,  
@@ -324,7 +328,7 @@ class SelectiveInference:
         jth: int | None = None,
     ) -> "SelectiveInference":
 
-        print('other OC')
+        print('run alg before si')
         st = time.time()
         Xtrain_arr = np.asarray(Xtrain)
         ytrain_arr = np.asarray(ytrain).reshape(-1)
@@ -368,7 +372,7 @@ class SelectiveInference:
             raise ValueError("Empty feature selection set")
         # --- Test statistic
         p = len(M)
-
+        print('end', time.time() - st)
         tested_position = int(np.random.choice(range(p))) if jth is None else int(jth)
 
         if self.config.data_valuation == 'lava':

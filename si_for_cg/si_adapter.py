@@ -173,3 +173,20 @@ def make_eta_cgFS(X: np.ndarray, y: np.ndarray,
     eta = (ej.dot(trainpart)).T
 
     return eta
+
+def make_naive_etaFS(X_pruned: np.ndarray, y: np.ndarray,
+            #  obs_selection: list[int],
+             M,
+             j: int) -> np.ndarray:
+    """Make eta vector for selective inference."""
+    n, p = X_pruned.shape
+
+    X_prunned = X_pruned[:, M].copy()
+    
+    trainpart = np.linalg.inv(X_prunned.T.dot(X_prunned)).dot(X_prunned.T)
+    # print(trainpart.shape, valpart.shape)
+    ej = np.zeros(len(M))
+    ej[j] = 1
+    eta = (ej.dot(trainpart)).T
+
+    return eta

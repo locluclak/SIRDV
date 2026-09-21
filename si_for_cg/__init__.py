@@ -2,6 +2,7 @@
 
 from .lava_function import calc_lava_score
 from .si_dv import SelectionAdapter, SelectiveInference, SI_DV, NaiveTest, FSNaiveTest, CGSelectionAdapter, DataSplittingTest
+from .si_parametric import parametric_intervals_FS_nested, cg_parametric_intervals_FS_nested
 from .si_types import SIConfig, SIDecomposition, SIResult
 
 __all__ = [
@@ -16,4 +17,6 @@ __all__ = [
     "SIConfig",
     "SIDecomposition",
     "SIResult",
+    "parametric_intervals_FS_nested",
+    "cg_parametric_intervals_FS_nested",
 ]

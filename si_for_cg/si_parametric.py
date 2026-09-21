@@ -12,6 +12,8 @@ from .si_types import SIConfig, SIDecomposition, SelectionAdapter, LassoInfo
 from .si_overconditioning import sort_conditioning, overconditioning_intervals, CG_overconditioning_intervals, conditioning_Lasso
 from .si_utils import (interval_union, normalize_selection, solve_quad_list,
                        solve_quadratic_roots, interval_intersection, solve_Lasso)
+from .si_sort_walk import (iter_sort_regions, iter_cg_sort_regions,
+                           containing_piece, MAX_STALE, TOL)
 from . import OptimalTransport
 from scipy.optimize import linprog
 from .si_adapter import SelectionAdapter
@@ -59,7 +61,7 @@ def parametric_intervals_FS(
 
     z_obs = decomposition.etaT_y
 
-    print('end', time.time())
+    print('end', time.time() -st)
 
     print('OT')
     st = time.time()
@@ -84,7 +86,7 @@ def parametric_intervals_FS(
         raise RuntimeError("Left and right paths do not meet at the observed basis")
     list_da_itv = list(reversed(left_path[1:])) + [joined_path] + right_path[1:]
 
-    print('end', time.time())
+    print('end', time.time()-st)
 
     print('other OC')
     st = time.time()
@@ -95,7 +97,7 @@ def parametric_intervals_FS(
         while z < mr:
             if zlog != int(z):
                 zlog= int(z)
-                print(zlog)
+                # print(zlog)
             cost_z = wt + rt*z + ot*(z**2)
             selection_z, sorted_indices_z = adapter.select_with_known_basis(nt, S_, cost_z, B)
             M, Mc, sM = solve_Lasso(Xtrain[selection_z], (a_vec + b_vec*z)[selection_z], fs.lambda_)
@@ -126,8 +128,124 @@ def parametric_intervals_FS(
 
     final_interval = interval_union(final_interval)
 
-    print('end', time.time())
+    print('end', time.time()-st)
 
+
+    if not any(left <= z_obs <= right for left, right in final_interval):
+        raise RuntimeError("Parametric selection region does not contain etaT_y")
+    return final_interval
+
+
+def parametric_intervals_FS_nested(
+    Xtrain: np.ndarray,
+    Xval: np.ndarray,
+    decomposition: SIDecomposition,
+    adapter: SelectionAdapter,
+    config: SIConfig,
+    fs: LassoInfo,
+) -> list[tuple[float, float]]:
+    """Systematic nested parametric scan for lava with an inferred sort walk.
+
+    Walks the same traced OT basis intervals as ``parametric_intervals_FS``
+    (the observed LP basis is kept; the OT path is never re-solved at other
+    ``z``), but enumerates the conditioning event nested instead of jumping
+    to the last joint-intersection piece:
+
+        OT basis interval -> sort-condition regions -> Lasso-support regions.
+
+    The returned region is the union of pieces where the z-local Lasso
+    support equals ``fs.M`` -- the minimal conditioning event
+    ``{z : M(z) = M_obs}``.  The test statistic is built from the feature
+    set only (``make_eta_cgFS``/``make_etaFS`` use ``X[:, M]``), so the
+    sample top-k is not part of the event; within each sort region the
+    top-k is constant and only fixes the rows the Lasso is fit on.  The
+    stock scan consumes the last intersection piece per region, so it can
+    MISS event pieces; this walk enumerates them all.
+
+    Sort transitions are inferred from the fixed-basis score quadratics
+    (``si_sort_walk.iter_sort_regions``) with fallback to the original sort
+    computation on degenerate ties, and the Lasso sub-walk reuses the sort
+    region's fixed top-k selection.
+    """
+    if config.step <= 0:
+        raise ValueError("step must be positive")
+    if config.zmin >= config.zmax:
+        raise ValueError("zmin must be smaller than zmax")
+
+    a_vec = decomposition.a.reshape(-1, 1)
+    b_vec = decomposition.b.reshape(-1, 1)
+    nt, nv = Xtrain.shape[0], Xval.shape[0]
+    X = np.vstack([Xtrain, Xval])
+
+    OMEGA = OptimalTransport.constructOMEGA(nt, nv)
+    c_ = 0
+    for i in range(X.shape[1]):
+        c_ += np.dot(OMEGA, X[:, [i]]) * np.dot(OMEGA, X[:, [i]])
+
+    S_ = adapter.S_.copy()
+    h_ = adapter.h_.copy()
+    Omega_a = OMEGA.dot(a_vec)
+    Omega_b = OMEGA.dot(b_vec)
+    wt = c_ + Omega_a * Omega_a
+    rt = 2 * Omega_a * Omega_b
+    ot = Omega_b * Omega_b
+
+    z_obs = decomposition.etaT_y
+
+    base_args = (S_, h_.reshape(-1),
+                 wt.reshape(-1), rt.reshape(-1), ot.reshape(-1),
+                 z_obs, adapter.basis)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        future_right = executor.submit(trace_parametric_bases, *base_args,
+                                       config.zmax, direction=1, config=config)
+        future_left = executor.submit(trace_parametric_bases, *base_args,
+                                      config.zmin, direction=-1, config=config)
+        right_path = future_right.result()
+        left_path = future_left.result()
+
+    last_left = left_path[0]
+    first_right = right_path[0]
+    if np.array_equal(last_left[2], first_right[2]):
+        joined_path = last_left[0], first_right[1], last_left[2]
+    else:
+        raise RuntimeError("Left and right paths do not meet at the observed basis")
+    list_da_itv = list(reversed(left_path[1:])) + [joined_path] + right_path[1:]
+
+    final_interval = []
+    for ml, mr, B in list_da_itv:
+        for z_entry, sl, sr, selection in iter_sort_regions(
+                adapter, wt, rt, ot, B, ml, mr, config):
+            # level 3: Lasso-support regions inside the sort region
+            zl = z_entry
+            stale = 0
+            while zl < sr + TOL:
+                try:
+                    M, Mc, sM = solve_Lasso(
+                        Xtrain[selection], (a_vec + b_vec * zl)[selection],
+                        fs.lambda_)
+                    fs_itv = conditioning_Lasso(
+                        Xtrain[selection], a_vec[selection], b_vec[selection],
+                        fs.lambda_, M, Mc, sM)
+                except (RuntimeError, ValueError):
+                    stale += 1
+                    if stale > MAX_STALE:
+                        break
+                    zl += config.step
+                    continue
+                stale = 0
+                fs_over = interval_intersection(fs_itv, [(sl, sr)])
+                fpiece = containing_piece(fs_over, zl)
+                if fpiece is None:
+                    stale += 1
+                    if stale > MAX_STALE:
+                        break
+                    zl += config.step
+                    continue
+                if np.array_equal(fs.M, M):
+                    final_interval.append(fpiece)
+                zl = fpiece[1] + config.step
+
+    final_interval = interval_union(final_interval)
 
     if not any(left <= z_obs <= right for left, right in final_interval):
         raise RuntimeError("Parametric selection region does not contain etaT_y")
@@ -177,6 +295,92 @@ def cg_parametric_intervals_FS(
 
         if not matched:
             z += config.step
+    return final_interval
+
+def cg_parametric_intervals_FS_nested(
+    X: np.array,
+    decomposition: SIDecomposition,
+    adapter: SelectionAdapter,
+    config: SIConfig,
+    fs: LassoInfo,
+) -> list[tuple[float, float]]:
+    """Nested parametric scan for cg-score with an inferred sort walk.
+
+    Unlike lava, the cg-score quadratics ``CG_i(z) = (u_i + v_i z)^2 / d_i``
+    hold on the whole real line (``invH`` depends only on ``X``, and the
+    cg path never re-solves an OT basis), so there is no OT interval to
+    respect and the walk goes directly over ``[zmin, zmax]``:
+
+        sort-condition regions -> Lasso-support regions.
+
+    The returned region is the union of pieces where the z-local Lasso
+    support equals ``fs.M`` -- the minimal conditioning event
+    ``{z : M(z) = M_obs}``.  The test statistic is built from the feature
+    set only (``make_eta_cgFS`` uses ``X[:, M]``), so the sample top-k is
+    not part of the event; within each sort region the top-k is constant
+    and only fixes the rows the Lasso is fit on.  The stock
+    ``cg_parametric_intervals_FS`` recomputes the OC interval from a fresh
+    select at every entry ``z`` and can step over event pieces; this walk
+    enumerates them all systematically.
+    """
+    if config.step <= 0:
+        raise ValueError("step must be positive")
+    if config.zmin >= config.zmax:
+        raise ValueError("zmin must be smaller than zmax")
+
+    a_vec = decomposition.a.reshape(-1, 1)
+    b_vec = decomposition.b.reshape(-1, 1)
+
+    invH = adapter.invH
+    if invH is None:
+        raise ValueError("adapter.invH is None; call adapter.select() first")
+
+    n = X.shape[0]
+    if adapter.fraction <= 1:
+        n_keep = max(1, int(n * adapter.fraction))
+    else:
+        n_keep = int(adapter.fraction)
+
+    final_interval = []
+    stats = {}
+    for z_entry, sl, sr, selection in iter_cg_sort_regions(
+            invH, decomposition.a.reshape(-1), decomposition.b.reshape(-1),
+            config.zmin, config.zmax, config, n_keep, stats):
+        # level 2: Lasso-support regions inside the sort region (rows fixed)
+        zl = z_entry
+        stale = 0
+        while zl < sr + TOL:
+            try:
+                M, Mc, sM = solve_Lasso(
+                    X[selection], (a_vec + b_vec * zl)[selection],
+                    fs.lambda_)
+                fs_itv = conditioning_Lasso(
+                    X[selection], a_vec[selection], b_vec[selection],
+                    fs.lambda_, M, Mc, sM)
+            except (RuntimeError, ValueError):
+                stale += 1
+                if stale > MAX_STALE:
+                    break
+                zl += config.step
+                continue
+            stale = 0
+            fs_over = interval_intersection(fs_itv, [(sl, sr)])
+            fpiece = containing_piece(fs_over, zl)
+            if fpiece is None:
+                stale += 1
+                if stale > MAX_STALE:
+                    break
+                zl += config.step
+                continue
+            if np.array_equal(fs.M, M):
+                final_interval.append(fpiece)
+            zl = fpiece[1] + config.step
+
+    final_interval = interval_union(final_interval)
+
+    z_obs = decomposition.etaT_y
+    if not any(left <= z_obs <= right for left, right in final_interval):
+        raise RuntimeError("Parametric selection region does not contain etaT_y")
     return final_interval
 
 def cg_parametric_intervals(
