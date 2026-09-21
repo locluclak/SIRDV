@@ -6,11 +6,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sklearn.model_selection import train_test_split
 from si_for_cg import SI_DV, NaiveTest, FSNaiveTest, DataSplittingTest
-from si_for_cg.si_utils import generate
+from si_for_cg.si_utils import generate, generate_correlated
 import time
 import traceback
 def main():
     ns = [200,150,100,50]
+    # rho_list = [0.2,0.4, 0.6, 0.8]
     fraction_list = [0.2, 0.4, 0.6, 0.8]
     d_list = [4,5,6,7]
     d = 10
@@ -19,19 +20,21 @@ def main():
     alpha = 0.05
     dv = "lava"
     # dv = "cg-score"
-    n = 50
+    # n = 150
     lambda_ = 10
-    outputdir = 'output8'
+    outputdir = 'output_newnaive'
     os.makedirs(os.path.join(os.path.dirname(__file__), "..", outputdir), exist_ok=True)
 
-    for method in ['overconditioning']:
+    for method in ['naive',]:
         print(f"\n{'='*60}")
         print(f"Method: {method}")
         print(f"{'='*60}")
 
         for n in ns:
+        # for rho in rho_list:
         # for fraction in fraction_list:
         # for d in d_list:
+            # fname = f"fpr_{dv}FS_{method[:6]}_n{n}_rho{rho}.txt"
             fname = f"fpr_{dv}FS_{method[:6]}_n{n}_lambda{lambda_}.txt"
             # fname = f"fpr_{dv}FS_{method[:6]}_d{d}_lambda{lambda_}.txt"
             # fname = f"fpr_{dv}_{method[:6]}_fraction{fraction}.txt"
@@ -49,6 +52,7 @@ def main():
                     true_beta_t = np.asarray([0]*d).reshape(-1,1)
                     true_beta_v = np.asarray([0]*d).reshape(-1,1)
                     X_tr, X_te, y_tr, y_te, St, Sv = generate(n, 15, d, true_beta_t, true_beta_v,seed=seedd)
+                    # X_tr, X_te, y_tr, y_te, St, Sv = generate_correlated(n, 15, d, true_beta_t, true_beta_v, rho=0.5,seed=seedd)
                     # print(X_tr.shape, y_tr.shape)
                     # pval = 
                     start_t = time.time()
@@ -57,14 +61,16 @@ def main():
                             runner = FSNaiveTest(fraction=fraction, data_valuation= dv, 
                                                     lambda_= lambda_
                                                     )
-                            pv = runner.fit(X_tr, y_tr, Xval=X_te, yval=y_te, jth=None)
+                            pv = runner.fit(X_tr, y_tr, Xval=X_te, yval=y_te, Sigmat=St, Sigmav=Sv, jth=None)
                         elif method == 'split':
-                            runner = DataSplittingTest(fraction=fraction, data_valuation= dv, split_ratio= 0.3, 
+                            runner = DataSplittingTest(fraction=fraction, data_valuation= dv, split_ratio= 0.2, 
                                                     lambda_= lambda_
                                                     )
-                            pv = runner.fit(X_tr, y_tr, Xval=X_te, yval=y_te, jth=None)    
+                            pv = runner.fit(X_tr, y_tr, Xval=X_te, yval=y_te,
+                                            # Sigmat=St, Sigmav=Sv,
+                                              jth=None)    
                         else:
-                            pv = SI_DV(X_tr, y_tr, Xval=X_te, yval=y_te,
+                            pv = SI_DV(X_tr, y_tr, Xval=X_te, yval=y_te, Sigmat=St, Sigmav=Sv,
                                         fraction=fraction, jth=None,
                                         zmin=-20., zmax=20,
                                         method=method, data_valuation=dv)

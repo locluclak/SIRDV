@@ -53,7 +53,7 @@ def compute_pvalue_once(n=50, d=5, fraction=0.5, rng=None,i=0):
     # X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=1)
     true_beta_t = np.asarray([0]*d).reshape(-1,1)
     true_beta_v = np.asarray([0]*d).reshape(-1,1)
-    X_tr, X_te, y_tr, y_te, St, Sv = generate(n, 15, d, true_beta_t, true_beta_v,seed=507)
+    X_tr, X_te, y_tr, y_te, St, Sv = generate(50, 20, d, true_beta_t, true_beta_v,seed=504)
     # print(X_tr.shape, y_tr.shape)
     pval = SI_DV(X_tr, y_tr, Xval=X_te, yval=y_te,
                  fraction=fraction, jth=None, 

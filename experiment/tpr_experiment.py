@@ -21,10 +21,10 @@ def main():
     dv = "lava"
     # dv = "cg-score"
     con = 0.5
-    outputdir = "output7"
+    outputdir = "output_newnaive"
     os.makedirs(os.path.join(os.path.dirname(__file__), "..", outputdir), exist_ok=True)
 
-    for method in ['overconditioning']:
+    for method in ['naive']:
         print(f"\n{'='*60}")
         print(f"Method: {method}")
         print(f"{'='*60}")
@@ -80,9 +80,10 @@ def main():
 
                     if not np.isnan(pv):
                         valid_count += 1
-                        if pv <= alpha:
+                        if pv <= alpha and method != "naive":
                             rejected_count += 1
-
+                        elif pv <= alpha/2**10 and method == "naive":
+                            rejected_count += 1
                     if (i + 1) % 20 == 0:
                         print(f"  {i+1}/{iters} done, {valid_count} valid, {rejected_count} rejected")
 
