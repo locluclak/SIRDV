@@ -212,6 +212,7 @@ def parametric_intervals_FS_nested(
     list_da_itv = list(reversed(left_path[1:])) + [joined_path] + right_path[1:]
 
     final_interval = []
+    count_itv = 0
     for ml, mr, B in list_da_itv:
         for z_entry, sl, sr, selection in iter_sort_regions(
                 adapter, wt, rt, ot, B, ml, mr, config):
@@ -220,6 +221,7 @@ def parametric_intervals_FS_nested(
             stale = 0
             while zl < sr + TOL:
                 try:
+                    count_itv += 1
                     M, Mc, sM = solve_Lasso(
                         Xtrain[selection], (a_vec + b_vec * zl)[selection],
                         fs.lambda_)
@@ -244,7 +246,8 @@ def parametric_intervals_FS_nested(
                 if np.array_equal(fs.M, M):
                     final_interval.append(fpiece)
                 zl = fpiece[1] + config.step
-
+    # with open(f'ntotal_interval_{Xtrain.shape[0]}.txt','a') as f:
+    #     f.write(str(count_itv)+'\n')
     final_interval = interval_union(final_interval)
 
     if not any(left <= z_obs <= right for left, right in final_interval):

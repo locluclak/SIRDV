@@ -99,6 +99,48 @@ def generate_correlated(
 
     return Xs, Xt, Ys, Yt, Sigma_s, Sigma_t
 
+def generate_equicorrelated(
+    n, m, p, true_beta_s, true_beta_t, rho=0.5, scale=1.0, seed=None
+):
+    """Synthetic data with long-range (compound symmetry) correlated noise.
+
+    Unlike the AR(1) Toeplitz structure of ``generate_correlated`` (which
+    decays as rho^|i-j| and therefore survives a random train/hold-out split
+    only weakly), every pair of noise entries here shares correlation rho,
+    so a selection on one part of the data stays informative about the
+    held-out part.  ``scale`` sets the per-row noise sd.
+
+    Returns: Xs, Xt, Ys, Yt, Sigma_s, Sigma_t
+    """
+    if seed is not None:
+        np.random.seed(seed)
+
+    # 1. Generate design matrices
+    Xs = np.random.normal(loc=0, scale=1, size=(n, p))
+    Xt = np.random.normal(loc=0, scale=1, size=(m, p))
+
+    # 2. Compute true signals
+    mu_s = Xs.dot(true_beta_s)
+    mu_t = Xt.dot(true_beta_t)
+
+    # 3. Compound-symmetry covariance: Xi = s^2 * [(1 - rho) I + rho 11^T]
+    Sigma_s = scale**2 * ((1 - rho) * np.eye(n) + rho * np.ones((n, n)))
+    Sigma_t = scale**2 * ((1 - rho) * np.eye(m) + rho * np.ones((m, m)))
+
+    # 4. Generate correlated noise from Multivariate Normal distributions
+    noise_s = np.random.multivariate_normal(
+        mean=np.zeros(n), cov=Sigma_s
+    ).reshape(n, 1)
+    noise_t = np.random.multivariate_normal(
+        mean=np.zeros(m), cov=Sigma_t
+    ).reshape(m, 1)
+
+    # 5. Add correlated noise to response variables
+    Ys = mu_s + noise_s
+    Yt = mu_t + noise_t
+
+    return Xs, Xt, Ys, Yt, Sigma_s, Sigma_t
+
 def generate(n, m, p, true_beta_s, true_beta_t, seed = None):
     """return Xs, Xt, Ys, Yt, Sigma_s, Sigma_t"""
 
