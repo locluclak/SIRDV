@@ -8,6 +8,7 @@ import numpy as np
 from scipy.stats import kstest, uniform
 import matplotlib.pyplot as plt
 from si_for_cg import SI_DV
+from si_for_cg import _timeprof as tp
 
 
 def normalize_data(X, y):
@@ -39,7 +40,7 @@ def generate(n, m, p, true_beta_s, true_beta_t, seed = None):
 
     return Xs, Xt, Ys, Yt, Sigma_s, Sigma_t
 
-def compute_pvalue_once(n=50, d=5, fraction=0.5, rng=None,i=0):
+def compute_pvalue_once(n=50, d=15, fraction=0.5, rng=None,i=0):
     """Generate one dataset and return one p-value."""
     # if rng is None:
     #     rng = np.random.RandomState()
@@ -53,14 +54,18 @@ def compute_pvalue_once(n=50, d=5, fraction=0.5, rng=None,i=0):
     # X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=1)
     true_beta_t = np.asarray([0]*d).reshape(-1,1)
     true_beta_v = np.asarray([0]*d).reshape(-1,1)
-    X_tr, X_te, y_tr, y_te, St, Sv = generate(50, 20, d, true_beta_t, true_beta_v,seed=504)
+    _t_gen = tp.start("demo: generate data")
+    X_tr, X_te, y_tr, y_te, St, Sv = generate(100, 15, d, true_beta_t, true_beta_v,seed=None)
+    tp.stop(_t_gen)
     # print(X_tr.shape, y_tr.shape)
+    _t_si = tp.start("demo: SI_DV (whole)")
     pval = SI_DV(X_tr, y_tr, Xval=X_te, yval=y_te,
                  fraction=fraction, jth=None, 
-                 zmin=-20., zmax=20, lambda_=10, data_valuation="lava",
-                 method="parametric",
+                 zmin=-20., zmax=20, lambda_=5, data_valuation="cg-score",
+                 method="parametric_nested",
                 #  method="overconditioning"
                  )
+    tp.stop(_t_si)
     return pval
 
 
@@ -68,10 +73,13 @@ def main():
     n_iter = 1
     print(f"Running {n_iter} iterations of SI_DV overconditioning...")
 
-    rng = np.random.RandomState(seed=0)
+    tp.reset()
+    # rng = np.random.RandomState(seed=0)
     pvalues = []
     for i in range(n_iter):
-        pv = compute_pvalue_once(rng=rng,i=i)
+        _t_iter = tp.start("demo: iteration total")
+        pv = compute_pvalue_once(i=i)
+        tp.stop(_t_iter)
 
         if not np.isnan(pv):
             pvalues.append(pv)
@@ -80,6 +88,7 @@ def main():
             print(f"  {i+1}/{n_iter} done, {len(pvalues)} valid p-values")
 
     pvalues = np.array(pvalues)
+    tp.report()
     
     print(f"\n{len(pvalues)} valid p-values collected")
 
