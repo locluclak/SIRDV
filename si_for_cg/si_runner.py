@@ -10,6 +10,7 @@ from .si_parametric import (parametric_intervals, traditional_parametric_interva
 from .si_types import SIConfig, SIResult, SelectionAdapter, LassoInfo
 from .si_utils import compute_p_value, decompose_y, interval_union
 from . import param
+from . import _timeprof as tp
 
 def selective_inference(
     Xtrain: np.ndarray,
@@ -23,7 +24,7 @@ def selective_inference(
     tested_index: int,
     observed_selection,
     config: SIConfig | None = None,
-    method: str = "parametric",
+    method: str = "parametric_nested",
     null_mean: float = 0.0,
 ) -> SIResult:
     """Run selective inference for any adapter with a ``select`` method."""
@@ -32,7 +33,10 @@ def selective_inference(
         y = np.concatenate([ytrain, yval])
         # print(y.shape)
         # print(Sigma.shape)
+        _t_dec = tp.start("runner: decompose_y")
         decomposition = decompose_y(y, eta, Sigma)
+        tp.stop(_t_dec)
+        _t_itv = tp.start("runner: intervals (parametric_nested)")
         if method == "parametric":
             intervals = parametric_intervals_FS(Xtrain, Xval, decomposition, 
                                                    adapter, observed_selection, config, fs)
@@ -50,9 +54,13 @@ def selective_inference(
             #                                 adapter, observed_selection, config,z=-17.5)) # 0.28083
         else:
             raise ValueError("method must be 'parametric' or 'overconditioning'")
+        tp.stop(_t_itv)
     if config.data_valuation == 'cg-score':
         y = ytrain
+        _t_dec = tp.start("runner: decompose_y")
         decomposition = decompose_y(y, eta, Sigma)
+        tp.stop(_t_dec)
+        _t_itv = tp.start("runner: intervals (parametric_nested)")
         if method == "parametric":
             intervals = cg_parametric_intervals_FS(X=Xtrain, decomposition=decomposition, adapter=adapter, observed_selection=observed_selection, config=config,fs=fs)
         elif method == "parametric_nested":
@@ -63,13 +71,16 @@ def selective_inference(
             # print('Final interval',intervals)
         else:
             raise ValueError("method must be 'parametric' or 'overconditioning'")
+        tp.stop(_t_itv)
     # intervals = [(-np.inf, np.inf)]
     # print('\n\nFinal interval',intervals)
+    _t_pv = tp.start("runner: compute_p_value")
     p_value = compute_p_value(intervals, 
                               decomposition.etaT_y, decomposition.etaT_Sigma_eta, 
                               null_mean=null_mean, 
                             #   type="one-sided")
                               type="two-sided")
+    tp.stop(_t_pv)
     return SIResult(
         p_value=p_value,
         intervals=intervals,

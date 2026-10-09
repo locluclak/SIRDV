@@ -16,6 +16,7 @@ from .si_utils import compute_p_value, decompose_y, solve_Lasso
 from sklearn.linear_model import Lasso
 from scipy.linalg import block_diag
 import time
+from . import _timeprof as tp
 # from .si_adapter import SelectionAdapter
 
 
@@ -122,7 +123,6 @@ class DataSplittingTest:
         intervals = [(-np.inf, np.inf)]
         p_value = compute_p_value(intervals, 
                             decomposition.etaT_y, decomposition.etaT_Sigma_eta,  
-                        #   type="one-sided")
                             type="two-sided")
 
         self.p_value_ = p_value
@@ -343,6 +343,7 @@ class SelectiveInference:
         else:
             Sigma = None
         # --- Run selection
+        _t_sel = tp.start("fit: adapter.select (lava LP)")
         if self.config.data_valuation == 'lava':
             Xval_arr = np.asarray(Xval)
             yval_arr = np.asarray(yval).reshape(-1)
@@ -360,8 +361,11 @@ class SelectiveInference:
 
             adapter = CGSelectionAdapter(fraction=self.fraction)
             observed_selection = adapter.select(Xtrain_arr, ytrain_arr)
+        tp.stop(_t_sel)
         
+        _t_ls = tp.start("fit: solve_Lasso (initial)")
         M, Mc, sM = solve_Lasso(Xtrain_arr[observed_selection], ytrain_arr.reshape(-1,1)[observed_selection], self.lasso.lambda_)
+        tp.stop(_t_ls)
         # print('M', M)
         # print('y dv',ytrain_arr[observed_selection])
         self.lasso.M, self.lasso.Mc, self.lasso.sM = M, Mc, sM
@@ -378,10 +382,13 @@ class SelectiveInference:
         if self.config.data_valuation == 'lava':
             y = np.concatenate([ytrain, yval])
             X = np.vstack([Xtrain_arr, Xval_arr])
+            _t_eta = tp.start("fit: make_eta_cgFS")
             eta = make_eta_cgFS(X= X, y= y,
                             # obs_selection = observed_selection,
                             M = M,
                             j = tested_position)
+            tp.stop(_t_eta)
+            _t_si = tp.start("fit: selective_inference (whole)")
             self.result_ = selective_inference(
                         Xtrain=Xtrain_arr,
                         Xval=Xval_arr,
@@ -397,11 +404,15 @@ class SelectiveInference:
                         method=self.method,
                         # null_mean=c,
                     )
+            tp.stop(_t_si)
         elif self.config.data_valuation == 'cg-score':
+            _t_eta = tp.start("fit: make_eta_cgFS")
             eta = make_eta_cgFS(X= Xtrain_arr, y= ytrain_arr,
                                         # obs_selection = observed_selection,
                                         M = M,
                                         j = tested_position)
+            tp.stop(_t_eta)
+            _t_si = tp.start("fit: selective_inference (whole)")
             self.result_ = selective_inference(
                         Xtrain_arr,
                         None,
@@ -417,6 +428,7 @@ class SelectiveInference:
                         method=self.method,
                         # null_mean=c,
                     )
+            tp.stop(_t_si)
         # print("test statistic", eta.T.dot(np.concatenate((ytrain_arr, yval_arr), axis=0)))
         # print("test position", tested_position)
         # --- Run selective inference

@@ -11,6 +11,7 @@ from scipy.linalg import toeplitz
 
 from .si_types import SIDecomposition
 from sklearn.linear_model import Lasso
+from . import _timeprof as tp
 
 # 30 significant digits are sufficient for every p-value CDF: the masses in
 # compute_p_value are evaluated in tail form (no `1 - tiny` subtraction), so
@@ -265,6 +266,118 @@ def solve_quadratic_inequality(a, b, c):
     if a < 0:
         return [(-np.inf, x2),(x1, np.inf)]
     return [(x1,x2)]
+
+_SOLVEINTERVAL_TOL_FACTOR = 1e-9
+def solveinterval(P: np.ndarray, Q: np.ndarray, O: np.ndarray, z):
+    """
+    P, Q, O: 1-D NumPy arrays of the same length.
+    Returns: list of (low, high) tuples after intersecting intervals.
+
+    Each row (a,b,c) of util.solve_quadratic_inequality(a,b,c) resolves,
+    after the same tolerance snap, to exactly one of: EMPTY (short-circuits
+    the whole intersection to []), ALL (identity, no-op), a LOWER or UPPER
+    bound (a==0), a SINGLE closed interval that tightens both bounds
+    (a>0, real roots), or a HOLE -- a forbidden open interval to subtract
+    (a<0, real roots). Since intersection is associative/commutative and
+    EMPTY/ALL are absorbing/identity elements, the whole batch reduces to
+    [max(lower bounds), min(upper bounds)] \\ union(forbidden holes),
+    independent of row order -- so this can be computed with array
+    reductions instead of a sequential per-row Python loop.
+    """
+    a0 = np.asarray(P, dtype=float)
+    b0 = np.asarray(Q, dtype=float)
+    c0 = np.asarray(O, dtype=float)
+    if a0.shape[0] == 0:
+        return [(-np.inf, np.inf)]  # matches: empty loop body -> untouched [(-inf,inf)]
+
+    # ---- per-row tolerance snap, exactly mirroring util.solve_quadratic_inequality ----
+    scale = np.maximum(np.abs(a0), np.maximum(np.abs(b0), np.abs(c0)))
+    tol = _SOLVEINTERVAL_TOL_FACTOR + _SOLVEINTERVAL_TOL_FACTOR * scale
+    a = np.where(np.abs(a0) <= tol, 0.0, a0)
+    b = np.where(np.abs(b0) <= tol, 0.0, b0)
+    c = np.where(np.abs(c0) <= tol, 0.0, c0)
+
+    is_a0 = (a == 0.0)
+
+    # ---- a == 0 (linear) branch ----
+    a0_bpos = is_a0 & (b > 0.0)   # UPPER bound: -c/b
+    a0_bzero = is_a0 & (b == 0.0)
+    a0_bneg = is_a0 & (b < 0.0)   # LOWER bound: -c/b
+    a0_empty = a0_bzero & (c > 0.0)
+    # a0_bzero & (c <= 0) -> ALL, no-op
+
+    # ---- a != 0 (quadratic) branch ----
+    a_ne0 = ~is_a0
+    a_safe = np.where(is_a0, 1.0, a)  # avoid /0 on rows unused below
+    delta = b * b - 4.0 * a * c
+    aq_dneg = a_ne0 & (delta < 0.0)
+    aq_dneg_empty = aq_dneg & (a > 0.0)
+    # aq_dneg & (a < 0) -> ALL, no-op
+
+    aq_dpos = a_ne0 & (delta >= 0.0)
+    sqrt_delta = np.sqrt(np.maximum(delta, 0.0))
+    x1 = (-b - sqrt_delta) / (2.0 * a_safe)
+    x2 = (-b + sqrt_delta) / (2.0 * a_safe)
+    aq_pos = aq_dpos & (a > 0.0)   # SINGLE: lower=x1, upper=x2 (x1<=x2)
+    aq_neg = aq_dpos & (a < 0.0)   # HOLE: forbidden open (x2, x1) (x2<=x1)
+
+    # ---- global short-circuit: any EMPTY row empties the whole intersection ----
+    if np.any(a0_empty) or np.any(aq_dneg_empty):
+        return []
+
+    # ---- accumulate the box [L, U] ----
+    L = -np.inf
+    if np.any(a0_bneg):
+        L = max(L, np.max(-c[a0_bneg] / b[a0_bneg]))
+    if np.any(aq_pos):
+        L = max(L, np.max(x1[aq_pos]))
+
+    U = np.inf
+    if np.any(a0_bpos):
+        U = min(U, np.min(-c[a0_bpos] / b[a0_bpos]))
+    if np.any(aq_pos):
+        U = min(U, np.min(x2[aq_pos]))
+
+    if not (L < U):
+        return []
+
+    # ---- subtract the union of forbidden HOLE intervals ----
+    if not np.any(aq_neg):
+        return [(L, U)]
+
+    flo = x2[aq_neg]
+    fhi = x1[aq_neg]
+    keep = (fhi > L) & (flo < U)  # drop holes that don't touch [L, U] at all
+    flo = np.clip(flo[keep], L, U)
+    fhi = np.clip(fhi[keep], L, U)
+    if flo.size == 0:
+        return [(L, U)]
+
+    order = np.argsort(flo, kind="stable")
+    flo, fhi = flo[order], fhi[order]
+
+    # Merge overlapping/touching holes (small loop: only over this call's
+    # a<0 rows within [L, U], not the full constraint count -- see doc SS5.2).
+    merged_lo = [flo[0]]
+    merged_hi = [fhi[0]]
+    for i in range(1, flo.size):
+        if flo[i] <= merged_hi[-1]:
+            if fhi[i] > merged_hi[-1]:
+                merged_hi[-1] = fhi[i]
+        else:
+            merged_lo.append(flo[i])
+            merged_hi.append(fhi[i])
+
+    trunc_interval = []
+    cur = L
+    for lo_f, hi_f in zip(merged_lo, merged_hi):
+        if cur < lo_f:
+            trunc_interval.append((cur, lo_f))
+        if hi_f > cur:
+            cur = hi_f
+    if cur < U:
+        trunc_interval.append((cur, U))
+    return trunc_interval
 def solve_quadratic_roots(a, b, c, current_z, goal, direction=1):
     """
     Tìm nghiệm thực nhỏ nhất của az^2 + bz + c = 0 trong khoảng (current_z, goal] nếu direction = 1
@@ -297,23 +410,7 @@ def solve_quadratic_roots(a, b, c, current_z, goal, direction=1):
         
     else:
         raise ValueError("Direction phải là 1 hoặc -1")
-# def solve_quadratic_roots(a, b, c, current_z, z_max):
-#     """Find the smallest real root of a*z^2 + b*z + c = 0 in the interval (current_z, z_max]."""
-#     eps = 1e-7
-#     roots = []
-    
-#     if abs(a) < 1e-10: # Linear: bz + c = 0
-#         if abs(b) > 1e-10:
-#             roots.append(-c / b)
-#     else: # Quadratic
-#         delta = b**2 - 4*a*c
-#         if delta >= 0:
-#             sqrt_delta = np.sqrt(delta)
-#             roots.append((-b + sqrt_delta) / (2*a))
-#             roots.append((-b - sqrt_delta) / (2*a))
-            
-#     valid_roots = [r for r in roots if r > current_z + eps and r <= z_max + eps]
-#     return min(valid_roots) if valid_roots else None
+
 
 
 def solve_quad_list(p, q, r, z_debug=None):
@@ -422,6 +519,7 @@ def solve_quad_list(p, q, r, z_debug=None):
 
     return [(left, right)]
 
+@tp.timed("compute_p_value (fn)")
 def compute_p_value(
     intervals: list[tuple[float, float]],
     etaT_y: float,
@@ -518,6 +616,7 @@ def decompose_y(y: np.ndarray, eta: np.ndarray, Sigma: np.ndarray) -> SIDecompos
         a=a,
         b=b,
     )
+@tp.timed("solve_Lasso (fn, all calls)")
 def solve_Lasso(X, Y, Lambda):
     """Solve Lasso and return an active set certified by its KKT conditions.
 
@@ -549,6 +648,7 @@ def solve_Lasso(X, Y, Lambda):
 
     # Retry with a tighter stopping criterion when the first coordinate-
     # descent pass has a small duality gap but an incorrect support.
+    _t_fit = tp.start("solve_Lasso: sklearn fit + KKT (inner)")
     last_violation = np.inf
     for tolerance in (1e-12, 1e-14):
         lasso = Lasso(
@@ -568,6 +668,7 @@ def solve_Lasso(X, Y, Lambda):
             f"parametric inference (violation={last_violation:.3e}, "
             f"tolerance={kkt_tolerance:.3e})."
         )
+    tp.stop(_t_fit)
 
     M = np.nonzero(beta_hat)[0]
     Mc = np.nonzero(beta_hat == 0)[0]

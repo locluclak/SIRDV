@@ -5,9 +5,10 @@ from __future__ import annotations
 import numpy as np
 
 from .si_types import SIConfig, SIDecomposition, SelectionAdapter, LassoInfo
-from .si_utils import solve_quad_list, solve_linear_inequality, interval_intersection
+from .si_utils import solve_quad_list, solve_linear_inequality, interval_intersection, solveinterval
 from . import OptimalTransport
 from scipy.linalg import lu_factor, lu_solve
+from . import _timeprof as tp
 
 def sort_conditioning(
     current_pos,
@@ -43,7 +44,7 @@ def sort_conditioning(
     vtilde = diffs[:, 1]
     wtilde = diffs[:, 2]
     # print(utilde)
-    return solve_quad_list(utilde, vtilde, wtilde, z_debug=None)
+    return solveinterval(utilde, vtilde, wtilde, current_pos)
 
 def CG_overconditioning_intervals(
     X: np.ndarray,
@@ -94,7 +95,7 @@ def CG_overconditioning_intervals(
     # print('pt', pt)
     # print('qt', qt)
     # print('rt', rt)
-    intervals = solve_quad_list(pt, qt, rt)
+    intervals = solveinterval(pt, qt, rt, 0.0)
     if fs:
         fs_itv = conditioning_Lasso(X[observed_selection], a_vec.reshape(-1,1)[observed_selection], b_vec.reshape(-1,1)[observed_selection], fs.lambda_, fs.M, fs.Mc, fs.sM)
         cg_oc_itv = interval_intersection(intervals, fs_itv)
@@ -197,6 +198,7 @@ def overconditioning_intervals(
     return []
     # return interval_intersection(OT_interval, selection_interval)
 
+@tp.timed("conditioning_Lasso (fn, all calls)")
 def conditioning_Lasso(X_, a, b, Lambda, M, Mc, sM):
     X_M = X_[:, M]
     X_Mc = X_[:, Mc]

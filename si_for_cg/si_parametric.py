@@ -10,7 +10,7 @@ from .si_adapter import SelectionAdapter, CGSelectionAdapter
 
 from .si_types import SIConfig, SIDecomposition, SelectionAdapter, LassoInfo
 from .si_overconditioning import sort_conditioning, overconditioning_intervals, CG_overconditioning_intervals, conditioning_Lasso
-from .si_utils import (interval_union, normalize_selection, solve_quad_list,
+from .si_utils import (interval_union, normalize_selection, solveinterval,
                        solve_quadratic_roots, interval_intersection, solve_Lasso)
 from .si_sort_walk import (iter_sort_regions, iter_cg_sort_regions,
                            containing_piece, MAX_STALE, TOL)
@@ -20,6 +20,7 @@ from .si_adapter import SelectionAdapter
 from concurrent.futures import ThreadPoolExecutor
 
 import time
+from . import _timeprof as tp
 
 def parametric_intervals_FS(
     Xtrain: np.ndarray,
@@ -172,6 +173,7 @@ def parametric_intervals_FS_nested(
     if config.zmin >= config.zmax:
         raise ValueError("zmin must be smaller than zmax")
 
+    _t_pre = tp.start("nested: precompute (OMEGA, quadratics)")
     a_vec = decomposition.a.reshape(-1, 1)
     b_vec = decomposition.b.reshape(-1, 1)
     nt, nv = Xtrain.shape[0], Xval.shape[0]
@@ -191,7 +193,9 @@ def parametric_intervals_FS_nested(
     ot = Omega_b * Omega_b
 
     z_obs = decomposition.etaT_y
+    tp.stop(_t_pre)
 
+    _t_trace = tp.start("nested: trace_parametric_bases (L+R)")
     base_args = (S_, h_.reshape(-1),
                  wt.reshape(-1), rt.reshape(-1), ot.reshape(-1),
                  z_obs, adapter.basis)
@@ -210,18 +214,24 @@ def parametric_intervals_FS_nested(
     else:
         raise RuntimeError("Left and right paths do not meet at the observed basis")
     list_da_itv = list(reversed(left_path[1:])) + [joined_path] + right_path[1:]
+    tp.stop(_t_trace)
+    tp.tick("nested: OT intervals", len(list_da_itv))
 
     final_interval = []
     count_itv = 0
+    walk_stats = {}
+    _t_walk = tp.start("nested: sort walk + lasso loop (total)")
     for ml, mr, B in list_da_itv:
         for z_entry, sl, sr, selection in iter_sort_regions(
-                adapter, wt, rt, ot, B, ml, mr, config):
+                adapter, wt, rt, ot, B, ml, mr, config, stats=walk_stats):
+            tp.tick("nested: sort regions")
             # level 3: Lasso-support regions inside the sort region
             zl = z_entry
             stale = 0
             while zl < sr + TOL:
                 try:
                     count_itv += 1
+                    tp.tick("nested: lasso iterations")
                     M, Mc, sM = solve_Lasso(
                         Xtrain[selection], (a_vec + b_vec * zl)[selection],
                         fs.lambda_)
@@ -235,8 +245,10 @@ def parametric_intervals_FS_nested(
                     zl += config.step
                     continue
                 stale = 0
+                _t_io = tp.start("nested: interval ops (inner)")
                 fs_over = interval_intersection(fs_itv, [(sl, sr)])
                 fpiece = containing_piece(fs_over, zl)
+                tp.stop(_t_io)
                 if fpiece is None:
                     stale += 1
                     if stale > MAX_STALE:
@@ -246,9 +258,12 @@ def parametric_intervals_FS_nested(
                 if np.array_equal(fs.M, M):
                     final_interval.append(fpiece)
                 zl = fpiece[1] + config.step
-    # with open(f'ntotal_interval_{Xtrain.shape[0]}.txt','a') as f:
-    #     f.write(str(count_itv)+'\n')
+    tp.stop(_t_walk)
+    for k, v in walk_stats.items():
+        tp.tick(f"walk: {k}", v)
+    _t_union = tp.start("nested: final interval_union")
     final_interval = interval_union(final_interval)
+    tp.stop(_t_union)
 
     if not any(left <= z_obs <= right for left, right in final_interval):
         raise RuntimeError("Parametric selection region does not contain etaT_y")
@@ -553,6 +568,7 @@ def traditional_parametric_intervals(
     #     raise RuntimeError("Parametric selection region does not contain etaT_y")
     return final_interval
 
+@tp.timed("trace: _basis_optimal_region (all calls)")
 def _basis_optimal_region(
     H: np.ndarray,
     u: np.ndarray,
@@ -561,7 +577,7 @@ def _basis_optimal_region(
     basis: np.ndarray,
     z: float,
     direction: int,
-) -> tuple[float, float, list[int]]:
+) -> tuple[float, float, list[int], np.ndarray]:
     """
     Return the optimality region of `basis` containing z and the
     entering-variable candidates at the boundary in `direction`.
@@ -584,9 +600,9 @@ def _basis_optimal_region(
     rc_v = v[non_basis] - pi_v.dot(H[:, non_basis])
     rc_w = w[non_basis] - pi_w.dot(H[:, non_basis])
 
-    # solve_quad_list() returns the common region where
+    # solveinterval() returns the common region where
     # -RC_i(z) <= 0  <=>  RC_i(z) >= 0.
-    regions = solve_quad_list(-rc_w, -rc_v, -rc_u,)
+    regions = solveinterval(-rc_w, -rc_v, -rc_u, z)
 
     tol = 1e-8
 
@@ -640,14 +656,16 @@ def _basis_optimal_region(
         if abs(derivative) <= tol and a < -tol:
             entering_candidates.append(int(var))
 
-    return left, right, entering_candidates
+    return left, right, entering_candidates, B_inv
 
 
+@tp.timed("trace: _pivot_basis (all calls)")
 def _pivot_basis(
     H: np.ndarray,
     h: np.ndarray,
     basis: np.ndarray,
     entering: int,
+    B_inv: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Perform a deterministic simplex pivot using the supplied
@@ -655,8 +673,9 @@ def _pivot_basis(
     """
     basis = np.asarray(basis, dtype=int).copy()
 
-    B = H[:, basis]
-    B_inv = np.linalg.inv(B)
+    if B_inv is None:
+        B = H[:, basis]
+        B_inv = np.linalg.inv(B)
 
     # Direction of basic variables when entering variable increases.
     direction_vector = B_inv.dot(H[:, entering])
@@ -695,6 +714,7 @@ def _pivot_basis(
     return np.sort(basis)
 
 
+@tp.timed("trace_parametric_bases (fn)")
 def trace_parametric_bases(
     H: np.ndarray,
     h: np.ndarray,
@@ -721,7 +741,7 @@ def trace_parametric_bases(
     tol = 1e-8
 
     while ((direction > 0 and z < z_bound - tol) or (direction < 0 and z > z_bound + tol)):
-        left, right, entering_candidates = _basis_optimal_region(
+        left, right, entering_candidates, B_inv = _basis_optimal_region(
             H=H,
             u=u, v=v, w=w,
             basis=basis, z=z,
@@ -765,6 +785,7 @@ def trace_parametric_bases(
             H=H, h=h,
             basis=basis,
             entering=entering,
+            B_inv=B_inv,
         )
 
         # Move just inside the new basis region.
