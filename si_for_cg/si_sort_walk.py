@@ -39,6 +39,7 @@ from scipy.linalg import lu_factor, lu_solve
 
 from .si_overconditioning import sort_conditioning
 from .si_utils import interval_intersection
+from . import _timeprof as tp
 
 TOL = 1e-9
 TOL_CONT = 1e-7    # continuity check tolerance for an inferred flip
@@ -53,6 +54,7 @@ def containing_piece(pieces, z, tol=TOL):
     return None
 
 
+@tp.timed("walk: score_coefficients (per OT seed)")
 def score_coefficients(adapter, basis, w_cost, v_cost, u_cost, nt):
     """Per-sample score-quadratic table for one fixed OT basis.
 
@@ -68,6 +70,7 @@ def score_coefficients(adapter, basis, w_cost, v_cost, u_cost, nt):
     return scale * coef - coef.sum(axis=0, keepdims=True)
 
 
+@tp.timed("walk: pair_diffs (all calls)")
 def pair_diffs(s_coef, pi):
     """Quadratic coefficients of the consecutive score diffs for pi.
 
@@ -132,6 +135,7 @@ def quad_pieces(a, b, c, z):
     return left, right, ok
 
 
+@tp.timed("walk: region_containing (all calls)")
 def region_containing(dA, dB, dC, z, ml, mr):
     """Containing piece of the sort region (all pair diffs <= 0) at z.
 
@@ -151,6 +155,7 @@ def region_containing(dA, dB, dC, z, ml, mr):
     return (l, r)
 
 
+@tp.timed("walk: flip_reversal (all calls)")
 def flip_reversal(s_coef, pi, R):
     """Infer the next permutation at the sort-region boundary R.
 
@@ -184,6 +189,7 @@ def flip_reversal(s_coef, pi, R):
     return new_pi
 
 
+@tp.timed("walk: _resort fallback (all calls)")
 def _resort(adapter, wt, rt, ot, basis, z, ml, mr, config):
     """Original sort computation at z (fallback path).
 
