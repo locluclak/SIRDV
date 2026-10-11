@@ -35,6 +35,8 @@ def selective_inference(
         # print(Sigma.shape)
         _t_dec = tp.start("runner: decompose_y")
         decomposition = decompose_y(y, eta, Sigma)
+        config.zmin = config.zmin*decomposition.etaT_Sigma_eta
+        config.zmax = config.zmax*decomposition.etaT_Sigma_eta
         tp.stop(_t_dec)
         _t_itv = tp.start("runner: intervals (parametric_nested)")
         if method == "parametric":
@@ -59,6 +61,11 @@ def selective_inference(
         y = ytrain
         _t_dec = tp.start("runner: decompose_y")
         decomposition = decompose_y(y, eta, Sigma)
+        print(config.zmin, config.zmax)
+        config.zmin = config.zmin*np.sqrt(decomposition.etaT_Sigma_eta)
+        config.zmax = config.zmax*np.sqrt(decomposition.etaT_Sigma_eta)
+        print(config.zmin, config.zmax)
+
         tp.stop(_t_dec)
         _t_itv = tp.start("runner: intervals (parametric_nested)")
         if method == "parametric":
@@ -75,6 +82,8 @@ def selective_inference(
     # intervals = [(-np.inf, np.inf)]
     # print('\n\nFinal interval',intervals)
     _t_pv = tp.start("runner: compute_p_value")
+
+    print('Interval: ',intervals)
     p_value = compute_p_value(intervals, 
                               decomposition.etaT_y, decomposition.etaT_Sigma_eta, 
                               null_mean=null_mean, 

@@ -19,7 +19,7 @@ def normalize_data(X, y):
     if y_max - y_min > 0:
         y = 2 * (y - y_min) / (y_max - y_min) - 1
     return X, y
-def generate(n, m, p, true_beta_s, true_beta_t, seed = None):
+def generate(n, m, p, true_beta_s, true_beta_t, seed = None, return_sigma = False):
     """return Xs, Xt, Ys, Yt, Sigma_s, Sigma_t"""
 
     if seed is not None:
@@ -34,9 +34,10 @@ def generate(n, m, p, true_beta_s, true_beta_t, seed = None):
     # print(true_beta_s, true_beta_t)
     Ys = mu_s + np.random.normal(loc = 0, scale = 1, size = (n, 1))
     Yt = mu_t + np.random.normal(loc = 0, scale = 1, size = (m, 1))
-
-    Sigma_s = np.identity(n)
-    Sigma_t = np.identity(m)
+    Sigma_s, Sigma_t = None, None
+    if return_sigma:
+        Sigma_s = np.identity(n)
+        Sigma_t = np.identity(m)
 
     return Xs, Xt, Ys, Yt, Sigma_s, Sigma_t
 
@@ -55,7 +56,7 @@ def compute_pvalue_once(n=50, d=15, fraction=0.5, rng=None,i=0):
     true_beta_t = np.asarray([0]*d).reshape(-1,1)
     true_beta_v = np.asarray([0]*d).reshape(-1,1)
     _t_gen = tp.start("demo: generate data")
-    X_tr, X_te, y_tr, y_te, St, Sv = generate(100, 15, d, true_beta_t, true_beta_v,seed=None)
+    X_tr, X_te, y_tr, y_te, St, Sv = generate(10000, 15, d, true_beta_t, true_beta_v,seed=1)
     tp.stop(_t_gen)
     # print(X_tr.shape, y_tr.shape)
     _t_si = tp.start("demo: SI_DV (whole)")
@@ -63,6 +64,7 @@ def compute_pvalue_once(n=50, d=15, fraction=0.5, rng=None,i=0):
                  fraction=fraction, jth=None, 
                  zmin=-20., zmax=20, lambda_=5, data_valuation="cg-score",
                  method="parametric_nested",
+                 lasso_path=False
                 #  method="overconditioning"
                  )
     tp.stop(_t_si)

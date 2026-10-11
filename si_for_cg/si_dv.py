@@ -309,11 +309,12 @@ class SelectiveInference:
         method: str = "parametric",
         lambda_: float = 10.0,
         data_valuation: str = 'lava',
+        lasso_path=True,
     ):
         if data_valuation not in ['lava', 'cg-score']:
             raise ValueError("data_valuation must be 'lava' or 'cg-score'")
         self.fraction = fraction
-        self.config = SIConfig(zmin=zmin, zmax=zmax, step=step, data_valuation=data_valuation,)
+        self.config = SIConfig(zmin=zmin, zmax=zmax, step=step, data_valuation=data_valuation,lasso_path=lasso_path)
         self.lasso = LassoInfo(lambda_=lambda_)
         self.method = method
 
@@ -456,6 +457,7 @@ def SI_DV(
     method: str = "parametric",
     data_valuation: str = 'lava',
     lambda_: float = 10.0,
+    lasso_path: bool = True
 ) -> float:
     """Return a selective p-value for one selected DV-score sample."""
     si = SelectiveInference(
@@ -466,6 +468,7 @@ def SI_DV(
         method=method,
         lambda_=lambda_,
         data_valuation=data_valuation,
+        lasso_path=lasso_path
     ).fit(Xtrain, ytrain, Xval=Xval, yval=yval, Sigmat=Sigmat, Sigmav=Sigmav, jth=jth)
     return si.p_value_
 

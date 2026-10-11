@@ -15,7 +15,7 @@ class SelectionAdapter(Protocol):
         """Return the algorithm selection for ``X`` and ``y``."""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class SIConfig:
     """Configuration for approximate parametric selective inference."""
     data_valuation: str = 'lava'
@@ -23,6 +23,11 @@ class SIConfig:
     zmax: float = 20.0
     step: float = 0.00001
     atol: float = 1e-10
+    # Event-driven Lasso support walk (homotopy / LARS style): solve the Lasso
+    # once per merged selection span and infer the following support regions
+    # from the tight KKT rows instead of re-solving at every `step`.  Falls
+    # back to restart-and-solve on degenerate events.
+    lasso_path: bool = True
 
 @dataclass
 class LassoInfo:

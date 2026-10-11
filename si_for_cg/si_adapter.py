@@ -97,6 +97,18 @@ class SelectionAdapter:
         return list(int(idx) for idx in sorted(top_indices)), sorted_indices
 
 
+def _selection_rows(n: int, obs_selection) -> np.ndarray:
+    """The rows ``e_{obs_selection[i]}`` of the ``n x n`` identity.
+
+    Built directly (``k x n`` ones) instead of ``np.eye(n)[obs_selection]`` so
+    the full ``n x n`` identity is never materialized for large ``n``.
+    """
+    obs = np.asarray(obs_selection, dtype=int).reshape(-1)
+    E = np.zeros((obs.size, n))
+    E[np.arange(obs.size), obs] = 1.0
+    return E
+
+
 def make_eta_cg(X: np.ndarray, y: np.ndarray,
              obs_selection: list[int],
              j: int) -> np.ndarray:
@@ -110,7 +122,7 @@ def make_eta_cg(X: np.ndarray, y: np.ndarray,
     # print(trainpart.shape, valpart.shape)
     ej = np.zeros(p)
     ej[j] = 1
-    eta = (ej.dot(trainpart.dot(np.eye(n)[obs_selection]))).T
+    eta = (ej.dot(trainpart.dot(_selection_rows(n, obs_selection)))).T
 
     return eta
 
@@ -130,7 +142,7 @@ def make_eta(Xt: np.ndarray, yt: np.ndarray,
     # print(trainpart.shape, valpart.shape)
     ej = np.zeros(p)
     ej[j] = 1
-    eta = (ej.dot(np.hstack((trainpart.dot(np.eye(nt)[obs_selection]), 
+    eta = (ej.dot(np.hstack((trainpart.dot(_selection_rows(nt, obs_selection)), 
                              valpart)))).T
 
     return eta

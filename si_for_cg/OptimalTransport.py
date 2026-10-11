@@ -1,7 +1,8 @@
 import numpy as np 
 import time
-from .LPsolver import HIGHS_LPsolver
+# from .LPsolver import HIGHS_LPsolver
 from scipy.optimize import linprog
+from . import si_numba
 def basis_is_optimal(S_, h_, cost, basis, tol: float = 1e-8) -> bool:
     """Check primal and dual feasibility of an OT basis for a fixed LP."""
     S_ = np.asarray(S_, dtype=float)
@@ -25,6 +26,8 @@ def basis_is_optimal(S_, h_, cost, basis, tol: float = 1e-8) -> bool:
     return bool(np.min(reduced_cost, initial=np.inf) >= -tol)
 
 def constructOMEGA(n, m):
+    if si_numba.USE and si_numba.AVAILABLE:
+        return si_numba.n_construct_omega(n, m)
     vec1m = np.ones((m,1))
     vec0m = np.zeros((m,1))
 

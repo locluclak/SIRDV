@@ -13,7 +13,9 @@ from .si_overconditioning import sort_conditioning, overconditioning_intervals, 
 from .si_utils import (interval_union, normalize_selection, solveinterval,
                        solve_quadratic_roots, interval_intersection, solve_Lasso)
 from .si_sort_walk import (iter_sort_regions, iter_cg_sort_regions,
-                           containing_piece, MAX_STALE, TOL)
+                           containing_piece, MAX_STALE, TOL,
+                           coalesce_selection_regions)
+from .si_lasso_path import walk_lasso_support_regions, MAX_STALE as PATH_MAX_STALE
 from . import OptimalTransport
 from scipy.optimize import linprog
 from .si_adapter import SelectionAdapter
@@ -197,8 +199,15 @@ def parametric_intervals_FS_nested(
 
     _t_trace = tp.start("nested: trace_parametric_bases (L+R)")
     base_args = (S_, h_.reshape(-1),
-                 wt.reshape(-1), rt.reshape(-1), ot.reshape(-1),
-                 z_obs, adapter.basis)
+                    wt.reshape(-1), rt.reshape(-1), ot.reshape(-1),
+                    z_obs, adapter.basis)
+
+    # The two directions are independent traces from the observed basis; run
+    # them on a 2-worker thread pool.  The dominant work inside
+    # _basis_optimal_region (np.linalg.inv + pi_*.dot(H[:, non_basis])) is
+    # numpy/BLAS and releases the GIL, so the split is near-linear
+    # (~1.4-2x wall on the trace).  Do NOT use a process pool here: H would
+    # be pickled per task while each worker's BLAS oversubscribes cores.
     with ThreadPoolExecutor(max_workers=2) as executor:
         future_right = executor.submit(trace_parametric_bases, *base_args,
                                        config.zmax, direction=1, config=config)
@@ -206,7 +215,6 @@ def parametric_intervals_FS_nested(
                                       config.zmin, direction=-1, config=config)
         right_path = future_right.result()
         left_path = future_left.result()
-
     last_left = left_path[0]
     first_right = right_path[0]
     if np.array_equal(last_left[2], first_right[2]):
@@ -221,43 +229,62 @@ def parametric_intervals_FS_nested(
     count_itv = 0
     walk_stats = {}
     _t_walk = tp.start("nested: sort walk + lasso loop (total)")
+    regions = []
     for ml, mr, B in list_da_itv:
-        for z_entry, sl, sr, selection in iter_sort_regions(
-                adapter, wt, rt, ot, B, ml, mr, config, stats=walk_stats):
-            tp.tick("nested: sort regions")
-            # level 3: Lasso-support regions inside the sort region
-            zl = z_entry
+        print(ml, end = ' ')
+        regions.extend(iter_sort_regions(
+            adapter, wt, rt, ot, B, ml, mr, config, stats=walk_stats))
+    tp.tick("nested: sort regions (raw)", len(regions))
+
+    for z_entry, sl, sr, selection in coalesce_selection_regions(regions):
+        tp.tick("nested: merged selection spans")
+        if getattr(config, "lasso_path", False):
+            # Event-driven Lasso support walk: one Lasso solve per span, then
+            # infer each following support region from the tight KKT rows.
+            path_stats = {}
+            for L, R, Mpiece in walk_lasso_support_regions(
+                    Xtrain[selection], a_vec[selection], b_vec[selection],
+                    fs.lambda_, z_entry, sl, sr, config.step,
+                    max_stale=PATH_MAX_STALE, stats=path_stats):
+                if np.array_equal(fs.M, Mpiece):
+                    final_interval.append((L, R))
+            for k, v in path_stats.items():
+                tp.tick(f"lasso path: {k}", v)
+            continue
+        # level 3: Lasso-support regions inside the merged selection span
+        zl = z_entry
+        stale = 0
+        while zl < sr + TOL:
+            try:
+                count_itv += 1
+                tp.tick("nested: lasso iterations")
+                M, Mc, sM = solve_Lasso(
+                    Xtrain[selection], (a_vec + b_vec * zl)[selection],
+                    fs.lambda_)
+                fs_itv = conditioning_Lasso(
+                    Xtrain[selection], a_vec[selection], b_vec[selection],
+                    fs.lambda_, M, Mc, sM)
+            except (RuntimeError, ValueError):
+                stale += 1
+                if stale > MAX_STALE:
+                    break
+                zl += config.step
+                continue
             stale = 0
-            while zl < sr + TOL:
-                try:
-                    count_itv += 1
-                    tp.tick("nested: lasso iterations")
-                    M, Mc, sM = solve_Lasso(
-                        Xtrain[selection], (a_vec + b_vec * zl)[selection],
-                        fs.lambda_)
-                    fs_itv = conditioning_Lasso(
-                        Xtrain[selection], a_vec[selection], b_vec[selection],
-                        fs.lambda_, M, Mc, sM)
-                except (RuntimeError, ValueError):
-                    stale += 1
-                    if stale > MAX_STALE:
-                        break
-                    zl += config.step
-                    continue
-                stale = 0
-                _t_io = tp.start("nested: interval ops (inner)")
-                fs_over = interval_intersection(fs_itv, [(sl, sr)])
-                fpiece = containing_piece(fs_over, zl)
-                tp.stop(_t_io)
-                if fpiece is None:
-                    stale += 1
-                    if stale > MAX_STALE:
-                        break
-                    zl += config.step
-                    continue
-                if np.array_equal(fs.M, M):
-                    final_interval.append(fpiece)
-                zl = fpiece[1] + config.step
+            _t_io = tp.start("nested: interval ops (inner)")
+            fs_over = interval_intersection(fs_itv, [(sl, sr)])
+            fpiece = containing_piece(fs_over, zl)
+            tp.stop(_t_io)
+            if fpiece is None:
+                stale += 1
+                if stale > MAX_STALE:
+                    break
+                zl += config.step
+                continue
+            print('Interval M', M)
+            if np.array_equal(fs.M, M):
+                final_interval.append(fpiece)
+            zl = fpiece[1] + config.step
     tp.stop(_t_walk)
     for k, v in walk_stats.items():
         tp.tick(f"walk: {k}", v)
@@ -361,10 +388,28 @@ def cg_parametric_intervals_FS_nested(
 
     final_interval = []
     stats = {}
-    for z_entry, sl, sr, selection in iter_cg_sort_regions(
-            invH, decomposition.a.reshape(-1), decomposition.b.reshape(-1),
-            config.zmin, config.zmax, config, n_keep, stats):
-        # level 2: Lasso-support regions inside the sort region (rows fixed)
+    regions = list(iter_cg_sort_regions(
+        invH, decomposition.a.reshape(-1), decomposition.b.reshape(-1),
+        config.zmin, config.zmax, config, n_keep, stats))
+    tp.tick("nested: sort regions (raw)", len(regions))
+
+    for z_entry, sl, sr, selection in coalesce_selection_regions(regions):
+        tp.tick("nested: merged selection spans")
+        if getattr(config, "lasso_path", False):
+            # Event-driven Lasso support walk: one Lasso solve per span, then
+            # infer each following support region from the tight KKT rows.
+            path_stats = {}
+            for L, R, Mpiece in walk_lasso_support_regions(
+                    X[selection], a_vec[selection], b_vec[selection],
+                    fs.lambda_, z_entry, sl, sr, config.step,
+                    max_stale=PATH_MAX_STALE, stats=path_stats):
+                # print("L", L)
+                if np.array_equal(fs.M, Mpiece):
+                    final_interval.append((L, R))
+            for k, v in path_stats.items():
+                tp.tick(f"lasso path: {k}", v)
+            continue
+        # level 2: Lasso-support regions inside the merged selection span
         zl = z_entry
         stale = 0
         while zl < sr + TOL:
@@ -376,6 +421,7 @@ def cg_parametric_intervals_FS_nested(
                     X[selection], a_vec[selection], b_vec[selection],
                     fs.lambda_, M, Mc, sM)
             except (RuntimeError, ValueError):
+                print('expect')
                 stale += 1
                 if stale > MAX_STALE:
                     break
@@ -390,13 +436,17 @@ def cg_parametric_intervals_FS_nested(
                     break
                 zl += config.step
                 continue
+            # print('Interval M', M)
             if np.array_equal(fs.M, M):
+                # print('check M')
                 final_interval.append(fpiece)
             zl = fpiece[1] + config.step
 
     final_interval = interval_union(final_interval)
 
     z_obs = decomposition.etaT_y
+    # print('final', final_interval)
+    # print(z_obs)
     if not any(left <= z_obs <= right for left, right in final_interval):
         raise RuntimeError("Parametric selection region does not contain etaT_y")
     return final_interval

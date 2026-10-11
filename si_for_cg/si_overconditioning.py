@@ -9,6 +9,7 @@ from .si_utils import solve_quad_list, solve_linear_inequality, interval_interse
 from . import OptimalTransport
 from scipy.linalg import lu_factor, lu_solve
 from . import _timeprof as tp
+from . import si_numba
 
 def sort_conditioning(
     current_pos,
@@ -200,6 +201,8 @@ def overconditioning_intervals(
 
 @tp.timed("conditioning_Lasso (fn, all calls)")
 def conditioning_Lasso(X_, a, b, Lambda, M, Mc, sM):
+    if si_numba.USE and si_numba.AVAILABLE:
+        return si_numba.n_conditioning_lasso(X_, a, b, Lambda, M, Mc, sM)
     X_M = X_[:, M]
     X_Mc = X_[:, Mc]
 
