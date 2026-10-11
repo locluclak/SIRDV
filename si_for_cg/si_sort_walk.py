@@ -40,10 +40,12 @@ from scipy.linalg import lu_factor, lu_solve
 from .si_overconditioning import sort_conditioning
 from .si_utils import interval_intersection
 from . import _timeprof as tp
+from . import si_numba
 
 TOL = 1e-9
 TOL_CONT = 1e-7    # continuity check tolerance for an inferred flip
 MAX_STALE = 1000   # consecutive numerical-gap steps before giving up
+MERGE_GAP = 1e-6   # max sl-sr gap for merging equal-selection sort regions
 
 
 def containing_piece(pieces, z, tol=TOL):
@@ -276,6 +278,10 @@ def iter_sort_regions(adapter, wt, rt, ot, basis, ml, mr, config,
     ``iter_sort_regions_table`` with the lava fallback (original
     ``select_with_known_basis`` + ``sort_conditioning`` computation).
     """
+    if si_numba.USE and si_numba.AVAILABLE:
+        yield from si_numba.w_iter_sort_regions(
+            adapter, wt, rt, ot, basis, ml, mr, config, stats)
+        return
     nt = adapter.nt
     n_keep = max(1, int(nt * adapter.fraction))
     s_coef = score_coefficients(adapter, basis, wt, rt, ot, nt)
@@ -322,16 +328,55 @@ def iter_cg_sort_regions(invH, a_vec, b_vec, zmin, zmax, config, n_keep,
     one seed covers the whole walk.  ``n_keep`` follows the adapter rule
     (``fraction <= 1`` proportion, ``> 1`` absolute count).
     """
+    print('enter cg sort')
+    if si_numba.USE and si_numba.AVAILABLE:
+        yield from si_numba.w_iter_cg_sort_regions(
+            invH, a_vec, b_vec, zmin, zmax, config, n_keep, stats)
+        return
     s_coef = cg_score_coefficients(invH, a_vec, b_vec)
     fallback = lambda z: _resort_cg(s_coef, z, zmin, zmax)
     yield from iter_sort_regions_table(
         s_coef, zmin, zmax, config, n_keep, fallback, stats)
 
 
+def coalesce_selection_regions(regions, gap_tol=MERGE_GAP):
+    """Merge contiguous sort regions that share the same top-k selection.
+
+    ``regions`` yields ``(z_entry, sl, sr, selection)`` (the contract of
+    ``iter_sort_regions`` / ``iter_cg_sort_regions``).  A maximal run of
+    *contiguous* regions with equal (sorted) ``selection`` is emitted once as
+    ``(z_entry_first, sl_first, sr_last, selection)``.
+
+    The Lasso sub-walk depends only on ``selection`` and ``z`` -- never on
+    the OT basis (``a_vec``/``b_vec`` are global and the conditioning region
+    is a function of the row set alone).  So the union of pieces where the
+    z-local Lasso support equals the observed support is unchanged, while
+    re-solving at every sort-boundary and OT-boundary that does not change
+    the row set is removed.  ``sl`` must lie within ``gap_tol`` of the
+    running ``sr`` to extend, which guards against joining two equal
+    selections separated by a real (stale) gap: real gaps advance by
+    ``config.step`` (>= 1e-5), far above ``gap_tol``.
+    """
+    cur = None
+    for z_entry, sl, sr, selection in regions:
+        sel = tuple(int(i) for i in selection)
+        if cur is None:
+            cur = [z_entry, sl, sr, sel]
+        elif cur[3] == sel and sl <= cur[2] + gap_tol:
+            if sr > cur[2]:
+                cur[2] = sr
+        else:
+            yield cur[0], cur[1], cur[2], list(cur[3])
+            cur = [z_entry, sl, sr, sel]
+    if cur is not None:
+        yield cur[0], cur[1], cur[2], list(cur[3])
+
+
 __all__ = [
     "TOL",
     "TOL_CONT",
     "MAX_STALE",
+    "MERGE_GAP",
     "containing_piece",
     "score_coefficients",
     "pair_diffs",
@@ -342,4 +387,5 @@ __all__ = [
     "iter_sort_regions_table",
     "cg_score_coefficients",
     "iter_cg_sort_regions",
+    "coalesce_selection_regions",
 ]
