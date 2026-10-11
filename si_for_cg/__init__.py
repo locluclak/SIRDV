@@ -1,5 +1,11 @@
 """DV-score selective inference package exports."""
 
+from .blas_threads import pin_blas_threads as _pin_blas_threads
+
+# Small-matrix BLAS calls in the parametric trace are dominated by OpenBLAS
+# thread spawn/join overhead; pin to a single BLAS thread by default.
+_pin_blas_threads()
+
 from .lava_function import calc_lava_score
 from .si_dv import SelectionAdapter, SelectiveInference, SI_DV, NaiveTest, FSNaiveTest, CGSelectionAdapter, DataSplittingTest
 from .si_parametric import parametric_intervals_FS_nested, cg_parametric_intervals_FS_nested

@@ -56,13 +56,13 @@ def compute_pvalue_once(n=50, d=15, fraction=0.5, rng=None,i=0):
     true_beta_t = np.asarray([0]*d).reshape(-1,1)
     true_beta_v = np.asarray([0]*d).reshape(-1,1)
     _t_gen = tp.start("demo: generate data")
-    X_tr, X_te, y_tr, y_te, St, Sv = generate(10000, 15, d, true_beta_t, true_beta_v,seed=1)
+    X_tr, X_te, y_tr, y_te, St, Sv = generate(200, 40, d, true_beta_t, true_beta_v,seed=None)
     tp.stop(_t_gen)
     # print(X_tr.shape, y_tr.shape)
     _t_si = tp.start("demo: SI_DV (whole)")
     pval = SI_DV(X_tr, y_tr, Xval=X_te, yval=y_te,
                  fraction=fraction, jth=None, 
-                 zmin=-20., zmax=20, lambda_=5, data_valuation="cg-score",
+                 zmin=-20., zmax=20, lambda_=5, data_valuation="lava",
                  method="parametric_nested",
                  lasso_path=False
                 #  method="overconditioning"

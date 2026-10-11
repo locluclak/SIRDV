@@ -640,15 +640,16 @@ def _basis_optimal_region(
     non_basis = np.setdiff1d(np.arange(H.shape[1]), basis)
 
     B = H[:, basis]
-    B_inv = np.linalg.inv(B)
 
-    pi_u = u[basis].dot(B_inv)
-    pi_v = v[basis].dot(B_inv)
-    pi_w = w[basis].dot(B_inv)
+    # ``pi_c = c[basis] @ B^{-1}`` is the solution of ``B^T pi_c = c[basis]``;
+    # solving avoids forming ``B^{-1}`` (the hottest BLAS call in the trace).
+    pi = np.linalg.solve(B.T, np.column_stack((u[basis], v[basis], w[basis])))
 
-    rc_u = u[non_basis] - pi_u.dot(H[:, non_basis])
-    rc_v = v[non_basis] - pi_v.dot(H[:, non_basis])
-    rc_w = w[non_basis] - pi_w.dot(H[:, non_basis])
+    # Gather the non-basis columns once and reuse for all three reduced costs.
+    H_nb = H[:, non_basis]
+    rc_u = u[non_basis] - pi[:, 0].dot(H_nb)
+    rc_v = v[non_basis] - pi[:, 1].dot(H_nb)
+    rc_w = w[non_basis] - pi[:, 2].dot(H_nb)
 
     # solveinterval() returns the common region where
     # -RC_i(z) <= 0  <=>  RC_i(z) >= 0.
@@ -706,7 +707,7 @@ def _basis_optimal_region(
         if abs(derivative) <= tol and a < -tol:
             entering_candidates.append(int(var))
 
-    return left, right, entering_candidates, B_inv
+    return left, right, entering_candidates, B
 
 
 @tp.timed("trace: _pivot_basis (all calls)")
@@ -715,7 +716,7 @@ def _pivot_basis(
     h: np.ndarray,
     basis: np.ndarray,
     entering: int,
-    B_inv: np.ndarray | None = None,
+    B: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Perform a deterministic simplex pivot using the supplied
@@ -723,15 +724,14 @@ def _pivot_basis(
     """
     basis = np.asarray(basis, dtype=int).copy()
 
-    if B_inv is None:
+    if B is None:
         B = H[:, basis]
-        B_inv = np.linalg.inv(B)
 
     # Direction of basic variables when entering variable increases.
-    direction_vector = B_inv.dot(H[:, entering])
+    direction_vector = np.linalg.solve(B, H[:, entering])
 
     # Current basic solution.
-    x_basic = B_inv.dot(h)
+    x_basic = np.linalg.solve(B, h)
 
     # Variables that can hit zero.
     eligible = np.flatnonzero(direction_vector > 1e-9)
@@ -791,7 +791,7 @@ def trace_parametric_bases(
     tol = 1e-8
 
     while ((direction > 0 and z < z_bound - tol) or (direction < 0 and z > z_bound + tol)):
-        left, right, entering_candidates, B_inv = _basis_optimal_region(
+        left, right, entering_candidates, B_sys = _basis_optimal_region(
             H=H,
             u=u, v=v, w=w,
             basis=basis, z=z,
@@ -835,7 +835,7 @@ def trace_parametric_bases(
             H=H, h=h,
             basis=basis,
             entering=entering,
-            B_inv=B_inv,
+            B=B_sys,
         )
 
         # Move just inside the new basis region.
