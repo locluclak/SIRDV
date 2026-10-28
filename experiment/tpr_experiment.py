@@ -11,27 +11,31 @@ from si_for_cg.si_utils import generate, generate_contaminated_regression
 #output7 - std bad = 2 lamda =10 d =10
 
 def main():
-    ns = 50
+    ns = 100
     beta = [2, 1.5, 1.0, 0.5]
-    d = 10
+    b = 1.5
+    d = 15
     fraction = 0.5
     iters = 120
     alpha = 0.05
-    lambda_ = 10
-    dv = "lava"
-    # dv = "cg-score"
+    lambda_ = 5
+    # dv = "lava"
+    dv = "cg-score"
     con = 0.5
+    fraction_list = [0.3,0.4,0.5,0.6]
     outputdir = "output_newnaive"
     os.makedirs(os.path.join(os.path.dirname(__file__), "..", outputdir), exist_ok=True)
 
-    for method in ['naive']:
+    for method in ['split', 'naive', 'overconditioning', 'parametric_nested']:
         print(f"\n{'='*60}")
         print(f"Method: {method}")
         print(f"{'='*60}")
 
-        for b in beta:
+        # for b in beta:
+        for fraction in fraction_list:
             print(f"\n--- beta={b} ---")
             fname = f"tpr_{dv}_{method[:6]}_beta{b}.txt"
+            fname = f"tpr_{dv}_{method[:6]}_frac{fraction}.txt"
             fpath = os.path.join(os.path.dirname(__file__), "..", outputdir, fname)
             valid_count = 0
             rejected_count = 0
@@ -41,7 +45,7 @@ def main():
                 seedd = 0
                 while i < iters:
                     seedd+=1
-                    print('seed', i)
+                    print('seed', seedd)
                     # rng = np.random.RandomState(seed=i)
                     true_beta_t = np.asarray([b]*d).reshape(-1,1)
                     true_beta_v = np.asarray([b]*d).reshape(-1,1)
@@ -82,7 +86,7 @@ def main():
                         valid_count += 1
                         if pv <= alpha and method != "naive":
                             rejected_count += 1
-                        elif pv <= alpha/2**10 and method == "naive":
+                        elif pv <= alpha/2**15 and method == "naive":
                             rejected_count += 1
                     if (i + 1) % 20 == 0:
                         print(f"  {i+1}/{iters} done, {valid_count} valid, {rejected_count} rejected")

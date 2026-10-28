@@ -24,6 +24,14 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 from . import _timeprof as tp
 
+# Scale-relative reduced-cost feasibility tolerance.  The OT/parametric reduced
+# costs are quadratics in ``z``; when one is numerically zero (touching 0) but
+# floats to a shallow negative value, ``solveinterval`` can drop the (measure
+# zero) feasible point or return an empty region even though the basis is
+# optimal to floating-point precision.  RC is accepted as ">= 0" when it is
+# within ``_RC_FEAS_TOL * max(|RC|)`` of zero.
+_RC_FEAS_TOL = 1e-7
+
 def parametric_intervals_FS(
     Xtrain: np.ndarray,
     Xval: np.ndarray,
@@ -231,7 +239,7 @@ def parametric_intervals_FS_nested(
     _t_walk = tp.start("nested: sort walk + lasso loop (total)")
     regions = []
     for ml, mr, B in list_da_itv:
-        print(ml, end = ' ')
+        # print(ml, end = ' ')
         regions.extend(iter_sort_regions(
             adapter, wt, rt, ot, B, ml, mr, config, stats=walk_stats))
     tp.tick("nested: sort regions (raw)", len(regions))
@@ -281,7 +289,7 @@ def parametric_intervals_FS_nested(
                     break
                 zl += config.step
                 continue
-            print('Interval M', M)
+            # print('Interval M', M)
             if np.array_equal(fs.M, M):
                 final_interval.append(fpiece)
             zl = fpiece[1] + config.step
@@ -664,9 +672,32 @@ def _basis_optimal_region(
     ]
 
     if not containing:
-        raise RuntimeError(
-            f"Current basis is not optimal at z={z}"
-        )
+        # Numerical fallback.  Near-tangential reduced costs make the
+        # optimality region degenerate: ``solveinterval`` may return [] or drop
+        # the single feasible point, even though the basis is optimal at z to
+        # floating-point precision (the RC violation is ~1e-10 relative).  Only
+        # raise when RC(z) is genuinely negative beyond a scale-relative
+        # tolerance; otherwise accept z as a degenerate (measure-zero) region.
+        rc_z = rc_w * z * z + rc_v * z + rc_u
+        rc_scale = float(np.abs(rc_z).max())
+        rc_tol = _RC_FEAS_TOL * max(1.0, rc_scale)
+
+        if rc_z.min() < -rc_tol:
+            raise RuntimeError(
+                f"Current basis is not optimal at z={z}"
+            )
+
+        deriv_z = 2.0 * rc_w * z + rc_v
+        entering_candidates = []
+        for j in range(rc_z.size):
+            if abs(rc_z[j]) > rc_tol:
+                continue
+            if direction * deriv_z[j] < -tol:
+                entering_candidates.append(int(non_basis[j]))
+            elif abs(deriv_z[j]) <= tol and rc_w[j] < -tol:
+                entering_candidates.append(int(non_basis[j]))
+
+        return z, z, entering_candidates, B
 
     left, right = containing[0]
 
@@ -820,6 +851,13 @@ def trace_parametric_bases(
         # No entering variable means the boundary was not caused
         # by an RC becoming negative in the requested direction.
         if not entering_candidates:
+            if interval_right <= interval_left + tol:
+                # Degenerate region from the numerical fallback in
+                # _basis_optimal_region: no reduced cost crosses to negative in
+                # the requested direction, so there is no real breakpoint to
+                # pivot on.  Step past it and keep tracing.
+                z = boundary + direction * 1e-6
+                continue
             raise RuntimeError(
                 "No entering variable found at parametric boundary "
                 f"z={boundary}, direction={direction}, "

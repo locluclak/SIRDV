@@ -1,0 +1,9 @@
+# design column order for dataset=energy[Y2] (index	name)
+# dropped columns: ['X4']
+0	X1
+1	X2
+2	X3
+3	X5
+4	X6
+5	X7
+6	X8

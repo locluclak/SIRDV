@@ -1,0 +1,108 @@
+=== dataset=concrete  dv=cg-score ===  (appearances / iterations)
+                       Bonf       DS       OC       PN
+Cement              120/120  120/120  120/120  120/120
+Blast Furnace Slag   79/120   54/120   79/120   79/120
+Fly Ash               0/120    0/120    0/120    0/120
+Water                74/120   47/120   74/120   74/120
+Superplasticizer    117/120  113/120  117/120  117/120
+Coarse Aggregate     37/120   24/120   37/120   37/120
+Fine Aggregate       34/120   21/120   34/120   34/120
+Age                 120/120  113/120  120/120  120/120
+
+=== dataset=concrete  dv=lava ===  (appearances / iterations)
+                       Bonf       DS       OC       PN
+Cement              120/120  119/120  120/120  115/115
+Blast Furnace Slag   59/120   30/120   59/120   57/115
+Fly Ash               3/120    1/120    3/120    2/115
+Water                47/120   28/120   47/120   46/115
+Superplasticizer    115/120  102/120  115/120  110/115
+Coarse Aggregate     33/120   27/120   33/120   31/115
+Fine Aggregate       49/120   34/120   49/120   47/115
+Age                 120/120  107/120  120/120  115/115
+
+=== dataset=energy_Y1  dv=cg-score ===  (appearances / iterations)
+       Bonf       DS       OC       PN
+X1    0/120    0/120    0/120    0/120
+X2    0/120    0/120    0/120    0/120
+X3  120/120  117/120  120/120  120/120
+X5  120/120  120/120  120/120  120/120
+X6    0/120    0/120    0/120    0/120
+X7  120/120  113/120  120/120  120/120
+X8   11/120    3/120   11/120   11/120
+
+=== dataset=energy_Y1  dv=lava ===  (appearances / iterations)
+     Bonf
+X1   0/30
+X2   0/30
+X3  30/30
+X5  30/30
+X6   0/30
+X7  30/30
+X8   1/30
+
+=== dataset=energy_Y2  dv=cg-score ===  (appearances / iterations)
+       Bonf       DS       OC       PN
+X1    0/120    0/120    0/120    0/120
+X2    0/120    0/120    0/120    0/120
+X3  119/120   96/120  119/120  119/120
+X5  120/120  120/120  120/120  120/120
+X6    0/120    0/120    0/120    0/120
+X7  119/120   85/120  119/120  119/120
+X8    1/120    1/120    1/120    1/120
+
+=== dataset=garments  dv=cg-score ===  (appearances / iterations)
+                          Bonf       DS       OC       PN
+quarter                 57/120   24/120   56/119   55/118
+department              12/120   16/120   12/119   12/118
+day                     17/120   22/120   17/119   16/118
+targeted_productivity  120/120  116/120  119/119  118/118
+smv                     15/120    7/120   15/119   15/118
+over_time                3/120   10/120    3/119    3/118
+incentive               42/120   28/120   41/119   40/118
+idle_time               29/120   43/120   28/119   28/118
+idle_men                41/120   31/120   40/119   40/118
+no_of_style_change     101/120   70/120  100/119   99/118
+no_of_workers            1/120    1/120    1/119    1/118
+
+=== dataset=garments  dv=lava ===  (appearances / iterations)
+                          Bonf       DS       OC       PN
+quarter                 38/118   22/116   38/119   34/100
+department              18/118    8/116   18/119   19/100
+day                     23/118   13/116   23/119   24/100
+targeted_productivity  117/118  112/116  118/119  119/100
+smv                      3/118    2/116    3/119    8/100
+over_time                3/118    7/116    3/119    5/100
+incentive               34/118   28/116   34/119   36/100
+idle_time               10/118   15/116   11/119    7/100
+idle_men                14/118    3/116   14/119   14/100
+no_of_style_change      75/118   61/116   76/119   72/100
+no_of_workers            6/118    2/116    6/119    2/100
+
+=== dataset=wine  dv=cg-score ===  (appearances / iterations)
+                         Bonf       DS       OC       PN
+fixed acidity          12/120    4/120    7/120    7/119
+volatile acidity      119/120  108/120  120/120  119/119
+citric acid            17/120    5/120    5/120    4/119
+residual sugar         32/120    5/120   12/120   12/119
+chlorides              29/120    6/120   10/120   10/119
+free sulfur dioxide    88/120   22/120   47/120   46/119
+total sulfur dioxide    3/120    5/120    4/120    4/119
+density                 0/120   11/120    6/120    6/119
+pH                      8/120   18/120   29/120   29/119
+sulphates              47/120   31/120   41/120   40/119
+alcohol               120/120  113/120  120/120  119/119
+
+=== dataset=wine  dv=lava ===  (appearances / iterations)
+                         Bonf       DS       OC       PN
+fixed acidity           5/120    8/120    5/120    5/118
+volatile acidity      115/120  100/120  115/120  113/118
+citric acid             2/120    4/120    2/120    2/118
+residual sugar         30/120    8/120   30/120   29/118
+chlorides              26/120   15/120   26/120   26/118
+free sulfur dioxide    55/120   33/120   55/120   54/118
+total sulfur dioxide    4/120    3/120    4/120    4/118
+density                 2/120    4/120    2/120    2/118
+pH                      6/120    4/120    6/120    6/118
+sulphates              23/120   12/120   23/120   23/118
+alcohol               120/120  120/120  120/120  118/118
+

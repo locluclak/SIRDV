@@ -53,7 +53,6 @@ def parametric_simplex_quadratic(ns, nt, H, h, u, v, w, z_min, z_max):
     # 1. Tìm lời giải ban đầu tại z_min
     
     c_start = u + v * z_min + w * (z_min**2)
-    # Sử dụng method='highs' để có độ chính xác tốt hơn
     res = linprog(c_start, A_ub = - np.identity(ns * nt), b_ub = np.zeros((ns * nt, 1)), A_eq=H, b_eq=h, method='simplex',options={'maxiter': 1000000})
 
 

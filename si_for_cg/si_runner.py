@@ -84,7 +84,7 @@ def selective_inference(
     # print('\n\nFinal interval',intervals)
     _t_pv = tp.start("runner: compute_p_value")
 
-    print('Interval: ',intervals)
+    # print('Interval: ',intervals)
     p_value = compute_p_value(intervals, 
                               decomposition.etaT_y, decomposition.etaT_Sigma_eta, 
                               null_mean=null_mean, 

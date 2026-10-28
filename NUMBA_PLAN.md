@@ -63,15 +63,15 @@ The two `parametric_nested` entry points are re-exported in
 
 | # | Function | File:line | Called | Numba feasible | Tier | Notes |
 |---|----------|-----------|--------|----------------|------|-------|
-| N1 | `iter_sort_regions_table` walk | `si_sort_walk.py:206` | once per OT interval (lava) / once total (cg), loops over all sort regions | **Yes** | 1 | Pure numpy + Python per-region overhead. Hottest loop. Generator → convert to fill-and-return kernel. |
+| N1 | `iter_sort_regions_table` walk | `si_sort_walk.py:206` | once per OT interval (lava) / once total (cg), loops over all sort regions | **Yes** | 1 | Pure numpy + Python per-region overhead. Hottest loop. Generator → convert to fill-and-return kernel. **DONE** in `si_for_cg/si_numba.py`. |
 | N1a | `pair_diffs` | `si_sort_walk.py:73` | per region | Yes | 1 | Fold into N1. |
 | N1b | `quad_pieces` | `si_sort_walk.py:86` | per region | Yes | 1 | Fold into N1. |
 | N1c | `region_containing` | `si_sort_walk.py:138` | per region | Yes | 1 | Fold into N1. |
 | N1d | `flip_reversal` | `si_sort_walk.py:158` | per region | Yes | 1 | Fold into N1. |
 | N1e | `_resort` / `_resort_cg` fallback | `si_sort_walk.py:192` / `:304` | on degenerate ties | Yes | 1 | Needs `select_with_known_basis` + `sort_conditioning` inside kernel (both numba-able). |
-| N2 | `conditioning_Lasso` | `si_overconditioning.py:201` | per Lasso piece | **Yes** | 1 | Small dense inversions, called very often. |
-| N2a | `solve_linear_inequality` | `si_utils.py:208` | per `conditioning_Lasso` | Yes | 1 | Fold into N2. |
-| N3 | `constructOMEGA` | `OptimalTransport.py:27` | once per lava run | **Yes** | 1 | Python `np.append`/`hstack` build loop → O(n²m+nm²) with copies. |
+| N2 | `conditioning_Lasso` | `si_overconditioning.py:201` | per Lasso piece | **Yes** | 1 | Small dense inversions, called very often. **DONE**. |
+| N2a | `solve_linear_inequality` | `si_utils.py:208` | per `conditioning_Lasso` | Yes | 1 | Folded into N2 (`_solve_linear_inequality_kernel`). |
+| N3 | `constructOMEGA` | `OptimalTransport.py:27` | once per lava run | **Yes** | 1 | **DONE** but memory-bound: numba ≈ reference (1.0–1.06×), no win to chase. |
 | N4 | `solveinterval` | `si_utils.py:271` | trace + `sort_conditioning` | Yes | 1 | Already vectorized; numba removes temporaries and call overhead. |
 | N5 | `trace_parametric_bases` | `si_parametric.py:717` | 2 threads per lava run | Partial | 2 | Dominated by BLAS matmuls (`pi.dot(H)`); numba wins only overhead + reuse. |
 | N5a | `_basis_optimal_region` | `si_parametric.py:571` | per pivot | Partial | 2 | `np.setdiff1d` is numba-supported (0.68); `np.linalg.inv` OK. |
@@ -249,6 +249,95 @@ Lasso pieces are visited.
 
 Each phase: keep reference path, run `experiment/test_numba_parity.py`, commit
 only when parity is green and speedup is positive.
+
+### Phase 1 status — N1 (DONE)
+
+Implemented in `si_for_cg/si_numba.py`:
+
+- kernels: `_solveinterval_kernel`, `_quad_pieces_kernel`,
+  `_score_coefficients_kernel`, `_cg_score_coefficients_kernel`, `_pair_diffs`,
+  `_region_containing`, `_seed_pi`, `_flip_reversal`, `_walk_kernel` (shared
+  cg/lava walk with inline `_fallback_cg` / `_fallback_lava`);
+- wrappers: `n_solveinterval`, `n_quad_pieces`, `n_score_coefficients`,
+  `n_cg_score_coefficients`, `n_iter_cg_sort_regions`,
+  `w_iter_cg_sort_regions`, `w_iter_sort_regions`;
+- dispatch: `si_sort_walk.iter_sort_regions` / `iter_cg_sort_regions` check
+  `si_numba.USE and si_numba.AVAILABLE` (env `SI_USE_NUMBA=1`, or
+  `si_numba.USE = True`).
+
+Parity (harness, `IS` env, numba 0.68.0): kernel units PASS
+(`solveinterval`, `quad_pieces`, `score_coefficients`,
+`cg_score_coefficients`, `iter_cg_sort_regions`); integration PASS
+(cg 165 pieces, p identical `0.185427694845`; lava 28 pieces, p identical
+`0.0519951789863`); determinism PASS.
+
+Runtime (n=100, m=50, p=10):
+- end-to-end: lava **1.45×** (41.3 s → 28.4 s); cg ~**1.0×**.
+- kernel `solveinterval`: 18× (n=100), 15× (n=1000), 4.4× (n=10000).
+- `_timeprof` shows why cg is flat: it is dominated by `solve_Lasso`
+  (sklearn, ~70% of wall), which N1 does not touch.
+
+Next targets (unchanged priority, now evidence-backed): **N9** `solve_Lasso`
+for cg, **N5** `trace_parametric_bases` for lava (≈57 s of timer sum, the lava
+bottleneck), then **N2** `conditioning_Lasso` (0.37 s cg / 1.4 s lava).
+
+### Phase 1 status — N2, N3 (DONE)
+
+Implemented in `si_for_cg/si_numba.py`:
+
+- `_solve_linear_inequality_kernel`, `_conditioning_lasso_kernel` +
+  `n_conditioning_lasso` (returns a `list[(float, float)]` to keep the
+  `interval_intersection` / `containing_piece` contract; raises `ValueError`
+  on the `b==0 & c>0` infeasibility);
+- `_construct_omega_kernel` + `n_construct_omega`;
+- dispatch in `si_overconditioning.conditioning_Lasso` and
+  `OptimalTransport.constructOMEGA` behind `si_numba.USE`.
+
+Parity (harness): 16 PASS, 0 FAIL, 0 SKIP — `constructOMEGA` exact
+(`array_equal`), `conditioning_Lasso` (~100 batches), cg + lava integration and
+determinism all pass.
+
+Runtime:
+- `conditioning_Lasso`: cg 0.048 s → 0.014 s (~3.4×); lava 0.116 s → 0.035 s (~3.3×).
+- `constructOMEGA`: numba ≈ reference (memory-bound dense allocation).
+- end-to-end at n=40: cg 1.00×, lava 1.04× — both remain `solve_Lasso`-bound at
+  this size; the kernel wins only show up once N9/N5 shrink the dominant terms.
+
+Next: **N9** (`solve_Lasso`) and **N5** (`trace_parametric_bases`), then N6/N7/N8.
+
+### Phase 1 status — scaling with N1+N2+N3 (`experiment/bench_scaling.py`)
+
+`--repeats 2 --step 1e-3 --lambda 5`; numba 0.68.0; parity OK at every size.
+
+cg-score (parity-consistent):
+
+| n, m, p | ref s | numba s | speedup | pieces |
+|---|---|---|---|---|
+| 80, 30, 8 | 1.60 | 1.04 | 1.54× | 102 |
+| 120, 45, 10 | 2.22 | 1.40 | 1.59× | 88 |
+| 160, 60, 12 | 6.09 | 3.85 | 1.58× | 17 |
+| 200, 75, 15 | 7.78 | 4.93 | 1.58× | 191 |
+
+lava:
+
+| n, m, p | ref s | numba s | speedup | pieces |
+|---|---|---|---|---|
+| 60, 25, 6 | 3.74 | 2.62 | 1.43× | 386 |
+| 90, 35, 8 | 21.6 | 18.6 | 1.16× | 143 |
+| 120, 45, 10 | 38.6 | 38.6 | 1.00× | 59 |
+
+Conclusions:
+
+- **cg is capped by `solve_Lasso`** (sklearn) — the flat ~1.6× is the walk +
+  `conditioning_Lasso` savings with the Lasso term still dominant → **N9** is
+  the next win for cg.
+- **lava becomes `trace_parametric_bases`-bound as n grows** (the trace runs
+  before the walk and is not yet ported) → the N1 gain is diluted; **N5** is
+  the next win for lava.
+- Buffer fix: `_run_walk` now starts at `cap=128` and grows.  Preallocating the
+  worst-case `O(n^2)` per call was pure churn because
+  `w_iter_sort_regions` (lava) is invoked once per OT interval; this removed a
+  lava slowdown (0.80× → 1.00× at 120,45,10).
 
 ---
 

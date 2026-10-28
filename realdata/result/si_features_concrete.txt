@@ -1,0 +1,10 @@
+# design column order for dataset=concrete (index	name)
+# dropped columns: []
+0	Cement
+1	Blast Furnace Slag
+2	Fly Ash
+3	Water
+4	Superplasticizer
+5	Coarse Aggregate
+6	Fine Aggregate
+7	Age

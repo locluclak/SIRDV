@@ -1,0 +1,269 @@
+
+========================================================================
+concrete  |  target = Concrete Compressive Strength  |  n=1030, p=8
+  design rank = 8  |  max |corr| = 0.6575 (Water ~ Superplasticizer)
+  lambda=10  (sklearn alpha = lambda/n = 0.00970874)
+    KKT-certified support : yes   |M|=6  (n=1030, p=8)
+    train R^2             : 0.6128
+    rank(X_M)             : 6  (full rank = True)
+    cond(X_M)             : 3.406e+00
+    |M| / n               : 0.006
+      Cement                             beta=+0.62545
+      Age                                beta=+0.41340
+      Blast Furnace Slag                 beta=+0.41159
+      Water                              beta=-0.26245
+      Fly Ash                            beta=+0.22372
+      Superplasticizer                   beta=+0.10320
+
+  lambda=100  (sklearn alpha = lambda/n = 0.0970874)
+    KKT-certified support : yes   |M|=5  (n=1030, p=8)
+    train R^2             : 0.5314
+    rank(X_M)             : 5  (full rank = True)
+    cond(X_M)             : 2.396e+00
+    |M| / n               : 0.005
+      Cement                             beta=+0.39427
+      Age                                beta=+0.27953
+      Superplasticizer                   beta=+0.19583
+      Blast Furnace Slag                 beta=+0.16361
+      Water                              beta=-0.12668
+
+
+========================================================================
+energy[Y1]  |  target = Y1  |  n=768, p=8
+  design rank = 7  |  max |corr| = 0.9919 (X1 ~ X2)
+  lambda=10  (sklearn alpha = lambda/n = 0.0130208)
+    KKT-certified support : yes   |M|=4  (n=768, p=8)
+    train R^2             : 0.9103
+    rank(X_M)             : 4  (full rank = True)
+    cond(X_M)             : 1.335e+00
+    |M| / n               : 0.005
+      X5                                 beta=+0.81648
+      X7                                 beta=+0.25242
+      X3                                 beta=+0.21322
+      X8                                 beta=+0.02057
+
+  lambda=50  (sklearn alpha = lambda/n = 0.0651042)
+    KKT-certified support : yes   |M|=3  (n=768, p=8)
+    train R^2             : 0.8990
+    rank(X_M)             : 3  (full rank = True)
+    cond(X_M)             : 1.335e+00
+    |M| / n               : 0.004
+      X5                                 beta=+0.77577
+      X7                                 beta=+0.20465
+      X3                                 beta=+0.17251
+
+
+========================================================================
+energy[Y2]  |  target = Y2  |  n=768, p=8
+  design rank = 7  |  max |corr| = 0.9919 (X1 ~ X2)
+  lambda=10  (sklearn alpha = lambda/n = 0.0130208)
+    KKT-certified support : yes   |M|=5  (n=768, p=8)
+    train R^2             : 0.8804
+    rank(X_M)             : 5  (full rank = True)
+    cond(X_M)             : 6.143e+00
+    |M| / n               : 0.007
+      X5                                 beta=+0.87340
+      X7                                 beta=+0.19447
+      X3                                 beta=+0.15991
+      X1                                 beta=-0.04299
+      X6                                 beta=+0.00125
+
+  lambda=50  (sklearn alpha = lambda/n = 0.0651042)
+    KKT-certified support : yes   |M|=3  (n=768, p=8)
+    train R^2             : 0.8680
+    rank(X_M)             : 3  (full rank = True)
+    cond(X_M)             : 1.335e+00
+    |M| / n               : 0.004
+      X5                                 beta=+0.79138
+      X7                                 beta=+0.14232
+      X3                                 beta=+0.13957
+
+
+========================================================================
+parkinsons[total_UPDRS]  |  target = total_UPDRS  |  n=5875, p=19
+  dropped non-numeric columns: ['subject#']
+  design rank = 19  |  max |corr| = 1.0000 (Shimmer:APQ3 ~ Shimmer:DDA)
+  lambda=100  (sklearn alpha = lambda/n = 0.0170213)
+    KKT-certified support : yes   |M|=10  (n=5875, p=19)
+    train R^2             : 0.1615
+    rank(X_M)             : 10  (full rank = True)
+    cond(X_M)             : 5.975e+00
+    |M| / n               : 0.002
+      age                                beta=+0.24962
+      DFA                                beta=-0.15867
+      HNR                                beta=-0.15093
+      PPE                                beta=+0.10489
+      sex                                beta=-0.07900
+      test_time                          beta=+0.05980
+      Shimmer:APQ3                       beta=-0.05553
+      Jitter(Abs)                        beta=-0.03843
+      RPDE                               beta=+0.03277
+      NHR                                beta=-0.02103
+
+  lambda=200  (sklearn alpha = lambda/n = 0.0340426)
+    KKT-certified support : yes   |M|=7  (n=5875, p=19)
+    train R^2             : 0.1458
+    rank(X_M)             : 7  (full rank = True)
+    cond(X_M)             : 3.462e+00
+    |M| / n               : 0.001
+      age                                beta=+0.24414
+      DFA                                beta=-0.11832
+      HNR                                beta=-0.06804
+      PPE                                beta=+0.06136
+      sex                                beta=-0.05961
+      test_time                          beta=+0.04198
+      RPDE                               beta=+0.03611
+
+
+========================================================================
+parkinsons[motor_UPDRS]  |  target = motor_UPDRS  |  n=5875, p=19
+  dropped non-numeric columns: ['subject#']
+  design rank = 19  |  max |corr| = 1.0000 (Shimmer:APQ3 ~ Shimmer:DDA)
+  lambda=100  (sklearn alpha = lambda/n = 0.0170213)
+    KKT-certified support : yes   |M|=10  (n=5875, p=19)
+    train R^2             : 0.1367
+    rank(X_M)             : 10  (full rank = True)
+    cond(X_M)             : 6.957e+00
+    |M| / n               : 0.002
+      age                                beta=+0.21225
+      PPE                                beta=+0.17792
+      DFA                                beta=-0.15319
+      HNR                                beta=-0.11818
+      Jitter(Abs)                        beta=-0.09448
+      test_time                          beta=+0.05214
+      Shimmer:DDA                        beta=-0.04612
+      sex                                beta=-0.02387
+      Shimmer:APQ11                      beta=+0.01077
+      RPDE                               beta=+0.00814
+
+  lambda=200  (sklearn alpha = lambda/n = 0.0340426)
+    KKT-certified support : yes   |M|=7  (n=5875, p=19)
+    train R^2             : 0.1199
+    rank(X_M)             : 7  (full rank = True)
+    cond(X_M)             : 4.092e+00
+    |M| / n               : 0.001
+      age                                beta=+0.20768
+      DFA                                beta=-0.12218
+      PPE                                beta=+0.11728
+      HNR                                beta=-0.05458
+      test_time                          beta=+0.03421
+      Jitter(Abs)                        beta=-0.01289
+      RPDE                               beta=+0.00532
+
+
+========================================================================
+garments  |  target = actual_productivity  |  n=1197, p=13
+  dropped non-numeric columns: ['wip']
+  design rank = 13  |  max |corr| = 0.9394 (department ~ no_of_workers)
+  lambda=25  (sklearn alpha = lambda/n = 0.0208855)
+    KKT-certified support : yes   |M|=9  (n=1197, p=13)
+    train R^2             : 0.2654
+    rank(X_M)             : 9  (full rank = True)
+    cond(X_M)             : 5.799e+00
+    |M| / n               : 0.008
+      targeted_productivity              beta=+0.37874
+      smv                                beta=-0.20873
+      no_of_workers                      beta=+0.16779
+      team                               beta=-0.14690
+      idle_men                           beta=-0.11954
+      no_of_style_change                 beta=-0.06999
+      incentive                          beta=+0.03988
+      date                               beta=-0.03432
+      over_time                          beta=-0.00279
+
+  lambda=50  (sklearn alpha = lambda/n = 0.0417711)
+    KKT-certified support : yes   |M|=7  (n=1197, p=13)
+    train R^2             : 0.2397
+    rank(X_M)             : 7  (full rank = True)
+    cond(X_M)             : 1.750e+00
+    |M| / n               : 0.006
+      targeted_productivity              beta=+0.36020
+      team                               beta=-0.11975
+      idle_men                           beta=-0.10331
+      no_of_style_change                 beta=-0.05827
+      smv                                beta=-0.03980
+      incentive                          beta=+0.02169
+      date                               beta=-0.02001
+
+
+========================================================================
+wine  |  target = quality  |  n=6497, p=11
+  dropped non-numeric columns: ['type']
+  design rank = 11  |  max |corr| = 0.7209 (free sulfur dioxide ~ total sulfur dioxide)
+  lambda=50  (sklearn alpha = lambda/n = 0.00769586)
+    KKT-certified support : yes   |M|=9  (n=6497, p=11)
+    train R^2             : 0.2887
+    rank(X_M)             : 9  (full rank = True)
+    cond(X_M)             : 3.433e+00
+    |M| / n               : 0.001
+      alcohol                            beta=+0.44247
+      volatile acidity                   beta=-0.25458
+      total sulfur dioxide               beta=-0.11797
+      residual sugar                     beta=+0.10467
+      sulphates                          beta=+0.10092
+      free sulfur dioxide                beta=+0.09782
+      chlorides                          beta=-0.02446
+      pH                                 beta=+0.02011
+      citric acid                        beta=-0.00134
+
+  lambda=200  (sklearn alpha = lambda/n = 0.0307834)
+    KKT-certified support : yes   |M|=6  (n=6497, p=11)
+    train R^2             : 0.2751
+    rank(X_M)             : 6  (full rank = True)
+    cond(X_M)             : 3.151e+00
+    |M| / n               : 0.001
+      alcohol                            beta=+0.42459
+      volatile acidity                   beta=-0.22145
+      sulphates                          beta=+0.06944
+      residual sugar                     beta=+0.05103
+      free sulfur dioxide                beta=+0.02578
+      total sulfur dioxide               beta=-0.01427
+
+
+========================================================================
+news  |  target = shares  |  n=5000, p=59
+  dropped non-numeric columns: ['url']
+  (random subsample of 5000 / 39644 rows)
+  design rank = 57  |  max |corr| = 1.0000 (n_unique_tokens ~ n_non_stop_unique_tokens)
+  lambda=100  (sklearn alpha = lambda/n = 0.02)
+    KKT-certified support : yes   |M|=19  (n=5000, p=59)
+    train R^2             : 0.0340
+    rank(X_M)             : 19  (full rank = True)
+    cond(X_M)             : 6.879e+00
+    |M| / n               : 0.004
+      kw_avg_avg                         beta=+0.12574
+      data_channel_is_entertainment      beta=-0.02644
+      data_channel_is_lifestyle          beta=+0.02142
+      timedelta                          beta=+0.02081
+      kw_max_min                         beta=-0.02007
+      self_reference_min_shares          beta=+0.01791
+      kw_avg_min                         beta=-0.01684
+      LDA_03                             beta=+0.01599
+      num_imgs                           beta=+0.01556
+      weekday_is_saturday                beta=+0.01214
+      self_reference_avg_sharess         beta=+0.01165
+      global_subjectivity                beta=+0.01145
+      num_keywords                       beta=+0.00813
+      num_hrefs                          beta=+0.00738
+      kw_min_min                         beta=+0.00696
+      n_tokens_content                   beta=+0.00495
+      title_subjectivity                 beta=+0.00322
+      LDA_02                             beta=-0.00183
+      abs_title_sentiment_polarity       beta=+0.00058
+
+  lambda=200  (sklearn alpha = lambda/n = 0.04)
+    KKT-certified support : yes   |M|=9  (n=5000, p=59)
+    train R^2             : 0.0218
+    rank(X_M)             : 9  (full rank = True)
+    cond(X_M)             : 2.958e+00
+    |M| / n               : 0.002
+      kw_avg_avg                         beta=+0.09498
+      LDA_03                             beta=+0.00875
+      self_reference_min_shares          beta=+0.00720
+      data_channel_is_lifestyle          beta=+0.00693
+      data_channel_is_entertainment      beta=-0.00689
+      num_imgs                           beta=+0.00577
+      self_reference_avg_sharess         beta=+0.00431
+      global_subjectivity                beta=+0.00210
+      num_hrefs                          beta=+0.00167
+

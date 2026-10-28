@@ -521,6 +521,37 @@ def section_integration(report, args):
 
 
 # ---------------------------------------------------------------------------
+# section 2b: _timeprof breakdown
+# ---------------------------------------------------------------------------
+def section_profile(report, args):
+    print("\n=== 2b. TIMING BREAKDOWN (_timeprof) ===")
+    from si_for_cg import _timeprof as tp
+    for dv in ("cg-score", "lava"):
+        if dv == "lava" and (args.no_lava or not linprog_is_patched()):
+            continue
+        try:
+            seed, _ = run_pipeline_first(dv, args)
+        except Exception as exc:  # noqa: BLE001
+            report.skip(f"{dv} profile", f"{type(exc).__name__}: {exc}")
+            continue
+        for use in (False, True):
+            if use and si_numba is None:
+                continue
+            old = set_numba(use)
+            try:
+                tp.reset()
+                run_pipeline(dv, args.n, args.m, args.p, args.fraction,
+                             args.lambda_, args.zmin, args.zmax, args.step, seed)
+                label = "numba" if use else "reference"
+                print(f"\n-- {dv} / {label} (seed={seed}) --")
+                tp.report()
+            except Exception as exc:  # noqa: BLE001
+                report.bad(f"{dv} profile ({use})", str(exc))
+            finally:
+                restore_env(old)
+
+
+# ---------------------------------------------------------------------------
 # section 3: runtime
 # ---------------------------------------------------------------------------
 def timeit(fn, repeats=3):
@@ -621,6 +652,7 @@ def main():
     preflight(report)
     section_kernel_parity(report)
     section_integration(report, args)
+    section_profile(report, args)
     rng = np.random.default_rng(7)
     bench_kernels(report, rng)
     bench_end_to_end(report, args)

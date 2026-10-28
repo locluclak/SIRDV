@@ -27,11 +27,13 @@ class DataSplittingTest:
             data_valuation,
             lambda_ = 10,
             split_ratio=0.3,
+            random_state=None,
     ):
         self.fraction = fraction
         self.data_valuation = data_valuation
         self.lambda_ = lambda_
         self.split_ratio = split_ratio
+        self.random_state = random_state
     def fit(
         self,
         Xtrain: np.ndarray,
@@ -53,7 +55,8 @@ class DataSplittingTest:
             Xtrain_arr, 
             ytrain_arr, 
             indices,
-            test_size=self.split_ratio
+            test_size=self.split_ratio,
+            random_state=self.random_state,
         )
         Sigmat = np.eye(ytrain.shape[0]) if Sigmat is None else np.asarray(Sigmat)
         Sigmav = np.eye(yval.shape[0]) if Sigmav is None else np.asarray(Sigmav)
@@ -128,6 +131,8 @@ class DataSplittingTest:
         self.p_value_ = p_value
         self.selected_indices_ = np.asarray(observed_selection, dtype=int)
         self.tested_index_ = tested_position
+        self.M_ = np.asarray(M, dtype=int)
+        self.n_selected_ = int(len(M))
         return self.p_value_
 
 class FSNaiveTest:
@@ -221,6 +226,8 @@ class FSNaiveTest:
         self.p_value_ = p_value
         self.selected_indices_ = np.asarray(observed_selection, dtype=int)
         self.tested_index_ = tested_position
+        self.M_ = np.asarray(M, dtype=int)
+        self.n_selected_ = int(len(M))
         return self.p_value_
 
 

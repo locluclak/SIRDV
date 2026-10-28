@@ -1,0 +1,13 @@
+# design column order for dataset=garments (index	name)
+# dropped columns: ['date', 'team']
+0	quarter
+1	department
+2	day
+3	targeted_productivity
+4	smv
+5	over_time
+6	incentive
+7	idle_time
+8	idle_men
+9	no_of_style_change
+10	no_of_workers

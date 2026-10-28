@@ -1,0 +1,304 @@
+dataset,dv,method,feature,count,n_iterations,fraction
+concrete,cg-score,bonferroni,Age,120,120,1.0
+concrete,cg-score,datasplit,Age,113,120,0.9416666666666667
+concrete,cg-score,overconditioning,Age,120,120,1.0
+concrete,cg-score,parametric_nested,Age,120,120,1.0
+concrete,cg-score,bonferroni,Blast Furnace Slag,79,120,0.6583333333333333
+concrete,cg-score,datasplit,Blast Furnace Slag,54,120,0.45
+concrete,cg-score,overconditioning,Blast Furnace Slag,79,120,0.6583333333333333
+concrete,cg-score,parametric_nested,Blast Furnace Slag,79,120,0.6583333333333333
+concrete,cg-score,bonferroni,Cement,120,120,1.0
+concrete,cg-score,datasplit,Cement,120,120,1.0
+concrete,cg-score,overconditioning,Cement,120,120,1.0
+concrete,cg-score,parametric_nested,Cement,120,120,1.0
+concrete,cg-score,bonferroni,Coarse Aggregate,37,120,0.30833333333333335
+concrete,cg-score,datasplit,Coarse Aggregate,24,120,0.2
+concrete,cg-score,overconditioning,Coarse Aggregate,37,120,0.30833333333333335
+concrete,cg-score,parametric_nested,Coarse Aggregate,37,120,0.30833333333333335
+concrete,cg-score,bonferroni,Fine Aggregate,34,120,0.2833333333333333
+concrete,cg-score,datasplit,Fine Aggregate,21,120,0.175
+concrete,cg-score,overconditioning,Fine Aggregate,34,120,0.2833333333333333
+concrete,cg-score,parametric_nested,Fine Aggregate,34,120,0.2833333333333333
+concrete,cg-score,bonferroni,Fly Ash,0,120,0.0
+concrete,cg-score,datasplit,Fly Ash,0,120,0.0
+concrete,cg-score,overconditioning,Fly Ash,0,120,0.0
+concrete,cg-score,parametric_nested,Fly Ash,0,120,0.0
+concrete,cg-score,bonferroni,Superplasticizer,117,120,0.975
+concrete,cg-score,datasplit,Superplasticizer,113,120,0.9416666666666667
+concrete,cg-score,overconditioning,Superplasticizer,117,120,0.975
+concrete,cg-score,parametric_nested,Superplasticizer,117,120,0.975
+concrete,cg-score,bonferroni,Water,74,120,0.6166666666666667
+concrete,cg-score,datasplit,Water,47,120,0.39166666666666666
+concrete,cg-score,overconditioning,Water,74,120,0.6166666666666667
+concrete,cg-score,parametric_nested,Water,74,120,0.6166666666666667
+concrete,lava,bonferroni,Age,120,120,1.0
+concrete,lava,datasplit,Age,107,120,0.8916666666666667
+concrete,lava,overconditioning,Age,120,120,1.0
+concrete,lava,parametric_nested,Age,115,115,1.0
+concrete,lava,bonferroni,Blast Furnace Slag,59,120,0.49166666666666664
+concrete,lava,datasplit,Blast Furnace Slag,30,120,0.25
+concrete,lava,overconditioning,Blast Furnace Slag,59,120,0.49166666666666664
+concrete,lava,parametric_nested,Blast Furnace Slag,57,115,0.4956521739130435
+concrete,lava,bonferroni,Cement,120,120,1.0
+concrete,lava,datasplit,Cement,119,120,0.9916666666666667
+concrete,lava,overconditioning,Cement,120,120,1.0
+concrete,lava,parametric_nested,Cement,115,115,1.0
+concrete,lava,bonferroni,Coarse Aggregate,33,120,0.275
+concrete,lava,datasplit,Coarse Aggregate,27,120,0.225
+concrete,lava,overconditioning,Coarse Aggregate,33,120,0.275
+concrete,lava,parametric_nested,Coarse Aggregate,31,115,0.26956521739130435
+concrete,lava,bonferroni,Fine Aggregate,49,120,0.4083333333333333
+concrete,lava,datasplit,Fine Aggregate,34,120,0.2833333333333333
+concrete,lava,overconditioning,Fine Aggregate,49,120,0.4083333333333333
+concrete,lava,parametric_nested,Fine Aggregate,47,115,0.40869565217391307
+concrete,lava,bonferroni,Fly Ash,3,120,0.025
+concrete,lava,datasplit,Fly Ash,1,120,0.008333333333333333
+concrete,lava,overconditioning,Fly Ash,3,120,0.025
+concrete,lava,parametric_nested,Fly Ash,2,115,0.017391304347826087
+concrete,lava,bonferroni,Superplasticizer,115,120,0.9583333333333334
+concrete,lava,datasplit,Superplasticizer,102,120,0.85
+concrete,lava,overconditioning,Superplasticizer,115,120,0.9583333333333334
+concrete,lava,parametric_nested,Superplasticizer,110,115,0.9565217391304348
+concrete,lava,bonferroni,Water,47,120,0.39166666666666666
+concrete,lava,datasplit,Water,28,120,0.23333333333333334
+concrete,lava,overconditioning,Water,47,120,0.39166666666666666
+concrete,lava,parametric_nested,Water,46,115,0.4
+energy_Y1,cg-score,bonferroni,X1,0,120,0.0
+energy_Y1,cg-score,datasplit,X1,0,120,0.0
+energy_Y1,cg-score,overconditioning,X1,0,120,0.0
+energy_Y1,cg-score,parametric_nested,X1,0,120,0.0
+energy_Y1,cg-score,bonferroni,X2,0,120,0.0
+energy_Y1,cg-score,datasplit,X2,0,120,0.0
+energy_Y1,cg-score,overconditioning,X2,0,120,0.0
+energy_Y1,cg-score,parametric_nested,X2,0,120,0.0
+energy_Y1,cg-score,bonferroni,X3,120,120,1.0
+energy_Y1,cg-score,datasplit,X3,117,120,0.975
+energy_Y1,cg-score,overconditioning,X3,120,120,1.0
+energy_Y1,cg-score,parametric_nested,X3,120,120,1.0
+energy_Y1,cg-score,bonferroni,X5,120,120,1.0
+energy_Y1,cg-score,datasplit,X5,120,120,1.0
+energy_Y1,cg-score,overconditioning,X5,120,120,1.0
+energy_Y1,cg-score,parametric_nested,X5,120,120,1.0
+energy_Y1,cg-score,bonferroni,X6,0,120,0.0
+energy_Y1,cg-score,datasplit,X6,0,120,0.0
+energy_Y1,cg-score,overconditioning,X6,0,120,0.0
+energy_Y1,cg-score,parametric_nested,X6,0,120,0.0
+energy_Y1,cg-score,bonferroni,X7,120,120,1.0
+energy_Y1,cg-score,datasplit,X7,113,120,0.9416666666666667
+energy_Y1,cg-score,overconditioning,X7,120,120,1.0
+energy_Y1,cg-score,parametric_nested,X7,120,120,1.0
+energy_Y1,cg-score,bonferroni,X8,11,120,0.09166666666666666
+energy_Y1,cg-score,datasplit,X8,3,120,0.025
+energy_Y1,cg-score,overconditioning,X8,11,120,0.09166666666666666
+energy_Y1,cg-score,parametric_nested,X8,11,120,0.09166666666666666
+energy_Y1,lava,bonferroni,X1,0,30,0.0
+energy_Y1,lava,bonferroni,X2,0,30,0.0
+energy_Y1,lava,bonferroni,X3,30,30,1.0
+energy_Y1,lava,bonferroni,X5,30,30,1.0
+energy_Y1,lava,bonferroni,X6,0,30,0.0
+energy_Y1,lava,bonferroni,X7,30,30,1.0
+energy_Y1,lava,bonferroni,X8,1,30,0.03333333333333333
+energy_Y2,cg-score,bonferroni,X1,0,120,0.0
+energy_Y2,cg-score,datasplit,X1,0,120,0.0
+energy_Y2,cg-score,overconditioning,X1,0,120,0.0
+energy_Y2,cg-score,parametric_nested,X1,0,120,0.0
+energy_Y2,cg-score,bonferroni,X2,0,120,0.0
+energy_Y2,cg-score,datasplit,X2,0,120,0.0
+energy_Y2,cg-score,overconditioning,X2,0,120,0.0
+energy_Y2,cg-score,parametric_nested,X2,0,120,0.0
+energy_Y2,cg-score,bonferroni,X3,119,120,0.9916666666666667
+energy_Y2,cg-score,datasplit,X3,96,120,0.8
+energy_Y2,cg-score,overconditioning,X3,119,120,0.9916666666666667
+energy_Y2,cg-score,parametric_nested,X3,119,120,0.9916666666666667
+energy_Y2,cg-score,bonferroni,X5,120,120,1.0
+energy_Y2,cg-score,datasplit,X5,120,120,1.0
+energy_Y2,cg-score,overconditioning,X5,120,120,1.0
+energy_Y2,cg-score,parametric_nested,X5,120,120,1.0
+energy_Y2,cg-score,bonferroni,X6,0,120,0.0
+energy_Y2,cg-score,datasplit,X6,0,120,0.0
+energy_Y2,cg-score,overconditioning,X6,0,120,0.0
+energy_Y2,cg-score,parametric_nested,X6,0,120,0.0
+energy_Y2,cg-score,bonferroni,X7,119,120,0.9916666666666667
+energy_Y2,cg-score,datasplit,X7,85,120,0.7083333333333334
+energy_Y2,cg-score,overconditioning,X7,119,120,0.9916666666666667
+energy_Y2,cg-score,parametric_nested,X7,119,120,0.9916666666666667
+energy_Y2,cg-score,bonferroni,X8,1,120,0.008333333333333333
+energy_Y2,cg-score,datasplit,X8,1,120,0.008333333333333333
+energy_Y2,cg-score,overconditioning,X8,1,120,0.008333333333333333
+energy_Y2,cg-score,parametric_nested,X8,1,120,0.008333333333333333
+garments,cg-score,bonferroni,day,17,120,0.14166666666666666
+garments,cg-score,datasplit,day,22,120,0.18333333333333332
+garments,cg-score,overconditioning,day,17,119,0.14285714285714285
+garments,cg-score,parametric_nested,day,16,118,0.13559322033898305
+garments,cg-score,bonferroni,department,12,120,0.1
+garments,cg-score,datasplit,department,16,120,0.13333333333333333
+garments,cg-score,overconditioning,department,12,119,0.10084033613445378
+garments,cg-score,parametric_nested,department,12,118,0.1016949152542373
+garments,cg-score,bonferroni,idle_men,41,120,0.3416666666666667
+garments,cg-score,datasplit,idle_men,31,120,0.25833333333333336
+garments,cg-score,overconditioning,idle_men,40,119,0.33613445378151263
+garments,cg-score,parametric_nested,idle_men,40,118,0.3389830508474576
+garments,cg-score,bonferroni,idle_time,29,120,0.24166666666666667
+garments,cg-score,datasplit,idle_time,43,120,0.35833333333333334
+garments,cg-score,overconditioning,idle_time,28,119,0.23529411764705882
+garments,cg-score,parametric_nested,idle_time,28,118,0.23728813559322035
+garments,cg-score,bonferroni,incentive,42,120,0.35
+garments,cg-score,datasplit,incentive,28,120,0.23333333333333334
+garments,cg-score,overconditioning,incentive,41,119,0.3445378151260504
+garments,cg-score,parametric_nested,incentive,40,118,0.3389830508474576
+garments,cg-score,bonferroni,no_of_style_change,101,120,0.8416666666666667
+garments,cg-score,datasplit,no_of_style_change,70,120,0.5833333333333334
+garments,cg-score,overconditioning,no_of_style_change,100,119,0.8403361344537815
+garments,cg-score,parametric_nested,no_of_style_change,99,118,0.8389830508474576
+garments,cg-score,bonferroni,no_of_workers,1,120,0.008333333333333333
+garments,cg-score,datasplit,no_of_workers,1,120,0.008333333333333333
+garments,cg-score,overconditioning,no_of_workers,1,119,0.008403361344537815
+garments,cg-score,parametric_nested,no_of_workers,1,118,0.00847457627118644
+garments,cg-score,bonferroni,over_time,3,120,0.025
+garments,cg-score,datasplit,over_time,10,120,0.08333333333333333
+garments,cg-score,overconditioning,over_time,3,119,0.025210084033613446
+garments,cg-score,parametric_nested,over_time,3,118,0.025423728813559324
+garments,cg-score,bonferroni,quarter,57,120,0.475
+garments,cg-score,datasplit,quarter,24,120,0.2
+garments,cg-score,overconditioning,quarter,56,119,0.47058823529411764
+garments,cg-score,parametric_nested,quarter,55,118,0.4661016949152542
+garments,cg-score,bonferroni,smv,15,120,0.125
+garments,cg-score,datasplit,smv,7,120,0.058333333333333334
+garments,cg-score,overconditioning,smv,15,119,0.12605042016806722
+garments,cg-score,parametric_nested,smv,15,118,0.1271186440677966
+garments,cg-score,bonferroni,targeted_productivity,120,120,1.0
+garments,cg-score,datasplit,targeted_productivity,116,120,0.9666666666666667
+garments,cg-score,overconditioning,targeted_productivity,119,119,1.0
+garments,cg-score,parametric_nested,targeted_productivity,118,118,1.0
+garments,lava,bonferroni,day,23,118,0.19491525423728814
+garments,lava,datasplit,day,13,116,0.11206896551724138
+garments,lava,overconditioning,day,23,119,0.19327731092436976
+garments,lava,parametric_nested,day,24,100,0.24
+garments,lava,bonferroni,department,18,118,0.15254237288135594
+garments,lava,datasplit,department,8,116,0.06896551724137931
+garments,lava,overconditioning,department,18,119,0.15126050420168066
+garments,lava,parametric_nested,department,19,100,0.19
+garments,lava,bonferroni,idle_men,14,118,0.11864406779661017
+garments,lava,datasplit,idle_men,3,116,0.02586206896551724
+garments,lava,overconditioning,idle_men,14,119,0.11764705882352941
+garments,lava,parametric_nested,idle_men,14,100,0.14
+garments,lava,bonferroni,idle_time,10,118,0.0847457627118644
+garments,lava,datasplit,idle_time,15,116,0.12931034482758622
+garments,lava,overconditioning,idle_time,11,119,0.09243697478991597
+garments,lava,parametric_nested,idle_time,7,100,0.07
+garments,lava,bonferroni,incentive,34,118,0.288135593220339
+garments,lava,datasplit,incentive,28,116,0.2413793103448276
+garments,lava,overconditioning,incentive,34,119,0.2857142857142857
+garments,lava,parametric_nested,incentive,36,100,0.36
+garments,lava,bonferroni,no_of_style_change,75,118,0.635593220338983
+garments,lava,datasplit,no_of_style_change,61,116,0.5258620689655172
+garments,lava,overconditioning,no_of_style_change,76,119,0.6386554621848739
+garments,lava,parametric_nested,no_of_style_change,72,100,0.72
+garments,lava,bonferroni,no_of_workers,6,118,0.05084745762711865
+garments,lava,datasplit,no_of_workers,2,116,0.017241379310344827
+garments,lava,overconditioning,no_of_workers,6,119,0.05042016806722689
+garments,lava,parametric_nested,no_of_workers,2,100,0.02
+garments,lava,bonferroni,over_time,3,118,0.025423728813559324
+garments,lava,datasplit,over_time,7,116,0.0603448275862069
+garments,lava,overconditioning,over_time,3,119,0.025210084033613446
+garments,lava,parametric_nested,over_time,5,100,0.05
+garments,lava,bonferroni,quarter,38,118,0.3220338983050847
+garments,lava,datasplit,quarter,22,116,0.1896551724137931
+garments,lava,overconditioning,quarter,38,119,0.31932773109243695
+garments,lava,parametric_nested,quarter,34,100,0.34
+garments,lava,bonferroni,smv,3,118,0.025423728813559324
+garments,lava,datasplit,smv,2,116,0.017241379310344827
+garments,lava,overconditioning,smv,3,119,0.025210084033613446
+garments,lava,parametric_nested,smv,8,100,0.08
+garments,lava,bonferroni,targeted_productivity,117,118,0.9915254237288136
+garments,lava,datasplit,targeted_productivity,112,116,0.9655172413793104
+garments,lava,overconditioning,targeted_productivity,118,119,0.9915966386554622
+garments,lava,parametric_nested,targeted_productivity,119,100,1.19
+wine,cg-score,bonferroni,alcohol,120,120,1.0
+wine,cg-score,datasplit,alcohol,113,120,0.9416666666666667
+wine,cg-score,overconditioning,alcohol,120,120,1.0
+wine,cg-score,parametric_nested,alcohol,119,119,1.0
+wine,cg-score,bonferroni,chlorides,29,120,0.24166666666666667
+wine,cg-score,datasplit,chlorides,6,120,0.05
+wine,cg-score,overconditioning,chlorides,10,120,0.08333333333333333
+wine,cg-score,parametric_nested,chlorides,10,119,0.08403361344537816
+wine,cg-score,bonferroni,citric acid,17,120,0.14166666666666666
+wine,cg-score,datasplit,citric acid,5,120,0.041666666666666664
+wine,cg-score,overconditioning,citric acid,5,120,0.041666666666666664
+wine,cg-score,parametric_nested,citric acid,4,119,0.03361344537815126
+wine,cg-score,bonferroni,density,0,120,0.0
+wine,cg-score,datasplit,density,11,120,0.09166666666666666
+wine,cg-score,overconditioning,density,6,120,0.05
+wine,cg-score,parametric_nested,density,6,119,0.05042016806722689
+wine,cg-score,bonferroni,fixed acidity,12,120,0.1
+wine,cg-score,datasplit,fixed acidity,4,120,0.03333333333333333
+wine,cg-score,overconditioning,fixed acidity,7,120,0.058333333333333334
+wine,cg-score,parametric_nested,fixed acidity,7,119,0.058823529411764705
+wine,cg-score,bonferroni,free sulfur dioxide,88,120,0.7333333333333333
+wine,cg-score,datasplit,free sulfur dioxide,22,120,0.18333333333333332
+wine,cg-score,overconditioning,free sulfur dioxide,47,120,0.39166666666666666
+wine,cg-score,parametric_nested,free sulfur dioxide,46,119,0.3865546218487395
+wine,cg-score,bonferroni,pH,8,120,0.06666666666666667
+wine,cg-score,datasplit,pH,18,120,0.15
+wine,cg-score,overconditioning,pH,29,120,0.24166666666666667
+wine,cg-score,parametric_nested,pH,29,119,0.24369747899159663
+wine,cg-score,bonferroni,residual sugar,32,120,0.26666666666666666
+wine,cg-score,datasplit,residual sugar,5,120,0.041666666666666664
+wine,cg-score,overconditioning,residual sugar,12,120,0.1
+wine,cg-score,parametric_nested,residual sugar,12,119,0.10084033613445378
+wine,cg-score,bonferroni,sulphates,47,120,0.39166666666666666
+wine,cg-score,datasplit,sulphates,31,120,0.25833333333333336
+wine,cg-score,overconditioning,sulphates,41,120,0.3416666666666667
+wine,cg-score,parametric_nested,sulphates,40,119,0.33613445378151263
+wine,cg-score,bonferroni,total sulfur dioxide,3,120,0.025
+wine,cg-score,datasplit,total sulfur dioxide,5,120,0.041666666666666664
+wine,cg-score,overconditioning,total sulfur dioxide,4,120,0.03333333333333333
+wine,cg-score,parametric_nested,total sulfur dioxide,4,119,0.03361344537815126
+wine,cg-score,bonferroni,volatile acidity,119,120,0.9916666666666667
+wine,cg-score,datasplit,volatile acidity,108,120,0.9
+wine,cg-score,overconditioning,volatile acidity,120,120,1.0
+wine,cg-score,parametric_nested,volatile acidity,119,119,1.0
+wine,lava,bonferroni,alcohol,120,120,1.0
+wine,lava,datasplit,alcohol,120,120,1.0
+wine,lava,overconditioning,alcohol,120,120,1.0
+wine,lava,parametric_nested,alcohol,118,118,1.0
+wine,lava,bonferroni,chlorides,26,120,0.21666666666666667
+wine,lava,datasplit,chlorides,15,120,0.125
+wine,lava,overconditioning,chlorides,26,120,0.21666666666666667
+wine,lava,parametric_nested,chlorides,26,118,0.22033898305084745
+wine,lava,bonferroni,citric acid,2,120,0.016666666666666666
+wine,lava,datasplit,citric acid,4,120,0.03333333333333333
+wine,lava,overconditioning,citric acid,2,120,0.016666666666666666
+wine,lava,parametric_nested,citric acid,2,118,0.01694915254237288
+wine,lava,bonferroni,density,2,120,0.016666666666666666
+wine,lava,datasplit,density,4,120,0.03333333333333333
+wine,lava,overconditioning,density,2,120,0.016666666666666666
+wine,lava,parametric_nested,density,2,118,0.01694915254237288
+wine,lava,bonferroni,fixed acidity,5,120,0.041666666666666664
+wine,lava,datasplit,fixed acidity,8,120,0.06666666666666667
+wine,lava,overconditioning,fixed acidity,5,120,0.041666666666666664
+wine,lava,parametric_nested,fixed acidity,5,118,0.0423728813559322
+wine,lava,bonferroni,free sulfur dioxide,55,120,0.4583333333333333
+wine,lava,datasplit,free sulfur dioxide,33,120,0.275
+wine,lava,overconditioning,free sulfur dioxide,55,120,0.4583333333333333
+wine,lava,parametric_nested,free sulfur dioxide,54,118,0.4576271186440678
+wine,lava,bonferroni,pH,6,120,0.05
+wine,lava,datasplit,pH,4,120,0.03333333333333333
+wine,lava,overconditioning,pH,6,120,0.05
+wine,lava,parametric_nested,pH,6,118,0.05084745762711865
+wine,lava,bonferroni,residual sugar,30,120,0.25
+wine,lava,datasplit,residual sugar,8,120,0.06666666666666667
+wine,lava,overconditioning,residual sugar,30,120,0.25
+wine,lava,parametric_nested,residual sugar,29,118,0.2457627118644068
+wine,lava,bonferroni,sulphates,23,120,0.19166666666666668
+wine,lava,datasplit,sulphates,12,120,0.1
+wine,lava,overconditioning,sulphates,23,120,0.19166666666666668
+wine,lava,parametric_nested,sulphates,23,118,0.19491525423728814
+wine,lava,bonferroni,total sulfur dioxide,4,120,0.03333333333333333
+wine,lava,datasplit,total sulfur dioxide,3,120,0.025
+wine,lava,overconditioning,total sulfur dioxide,4,120,0.03333333333333333
+wine,lava,parametric_nested,total sulfur dioxide,4,118,0.03389830508474576
+wine,lava,bonferroni,volatile acidity,115,120,0.9583333333333334
+wine,lava,datasplit,volatile acidity,100,120,0.8333333333333334
+wine,lava,overconditioning,volatile acidity,115,120,0.9583333333333334
+wine,lava,parametric_nested,volatile acidity,113,118,0.9576271186440678
