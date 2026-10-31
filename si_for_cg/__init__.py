@@ -10,6 +10,7 @@ from .lava_function import calc_lava_score
 from .si_dv import SelectionAdapter, SelectiveInference, SI_DV, NaiveTest, FSNaiveTest, CGSelectionAdapter, DataSplittingTest
 from .si_parametric import parametric_intervals_FS_nested, cg_parametric_intervals_FS_nested
 from .si_lasso_path import walk_lasso_support_regions
+from .si_seqfs import forward_selection_path, fs_conditioning_interval, interval_FS
 from .si_types import SIConfig, SIDecomposition, SIResult
 
 __all__ = [
@@ -27,4 +28,7 @@ __all__ = [
     "parametric_intervals_FS_nested",
     "cg_parametric_intervals_FS_nested",
     "walk_lasso_support_regions",
+    "forward_selection_path",
+    "fs_conditioning_interval",
+    "interval_FS",
 ]

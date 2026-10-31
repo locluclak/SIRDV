@@ -16,6 +16,7 @@ from .si_sort_walk import (iter_sort_regions, iter_cg_sort_regions,
                            containing_piece, MAX_STALE, TOL,
                            coalesce_selection_regions)
 from .si_lasso_path import walk_lasso_support_regions, MAX_STALE as PATH_MAX_STALE
+from .si_seqfs import fs_conditioning_interval
 from . import OptimalTransport
 from scipy.optimize import linprog
 from .si_adapter import SelectionAdapter
@@ -246,7 +247,7 @@ def parametric_intervals_FS_nested(
 
     for z_entry, sl, sr, selection in coalesce_selection_regions(regions):
         tp.tick("nested: merged selection spans")
-        if getattr(config, "lasso_path", False):
+        if getattr(config, "fs_method", "lasso") != "seqfs" and getattr(config, "lasso_path", False):
             # Event-driven Lasso support walk: one Lasso solve per span, then
             # infer each following support region from the tight KKT rows.
             path_stats = {}
@@ -266,12 +267,17 @@ def parametric_intervals_FS_nested(
             try:
                 count_itv += 1
                 tp.tick("nested: lasso iterations")
-                M, Mc, sM = solve_Lasso(
-                    Xtrain[selection], (a_vec + b_vec * zl)[selection],
-                    fs.lambda_)
-                fs_itv = conditioning_Lasso(
-                    Xtrain[selection], a_vec[selection], b_vec[selection],
-                    fs.lambda_, M, Mc, sM)
+                if getattr(config, "fs_method", "lasso") == "seqfs":
+                    M, fs_itv = fs_conditioning_interval(
+                        Xtrain[selection], a_vec[selection], b_vec[selection],
+                        zl, config.K)
+                else:
+                    M, Mc, sM = solve_Lasso(
+                        Xtrain[selection], (a_vec + b_vec * zl)[selection],
+                        fs.lambda_)
+                    fs_itv = conditioning_Lasso(
+                        Xtrain[selection], a_vec[selection], b_vec[selection],
+                        fs.lambda_, M, Mc, sM)
             except (RuntimeError, ValueError):
                 stale += 1
                 if stale > MAX_STALE:
@@ -403,7 +409,7 @@ def cg_parametric_intervals_FS_nested(
 
     for z_entry, sl, sr, selection in coalesce_selection_regions(regions):
         tp.tick("nested: merged selection spans")
-        if getattr(config, "lasso_path", False):
+        if getattr(config, "fs_method", "lasso") != "seqfs" and getattr(config, "lasso_path", False):
             # Event-driven Lasso support walk: one Lasso solve per span, then
             # infer each following support region from the tight KKT rows.
             path_stats = {}
@@ -422,12 +428,17 @@ def cg_parametric_intervals_FS_nested(
         stale = 0
         while zl < sr + TOL:
             try:
-                M, Mc, sM = solve_Lasso(
-                    X[selection], (a_vec + b_vec * zl)[selection],
-                    fs.lambda_)
-                fs_itv = conditioning_Lasso(
-                    X[selection], a_vec[selection], b_vec[selection],
-                    fs.lambda_, M, Mc, sM)
+                if getattr(config, "fs_method", "lasso") == "seqfs":
+                    M, fs_itv = fs_conditioning_interval(
+                        X[selection], a_vec[selection], b_vec[selection],
+                        zl, config.K)
+                else:
+                    M, Mc, sM = solve_Lasso(
+                        X[selection], (a_vec + b_vec * zl)[selection],
+                        fs.lambda_)
+                    fs_itv = conditioning_Lasso(
+                        X[selection], a_vec[selection], b_vec[selection],
+                        fs.lambda_, M, Mc, sM)
             except (RuntimeError, ValueError):
                 print('expect')
                 stale += 1

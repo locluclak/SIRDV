@@ -10,6 +10,7 @@ from . import OptimalTransport
 from scipy.linalg import lu_factor, lu_solve
 from . import _timeprof as tp
 from . import si_numba
+from .si_seqfs import fs_conditioning_interval
 
 def sort_conditioning(
     current_pos,
@@ -98,7 +99,18 @@ def CG_overconditioning_intervals(
     # print('rt', rt)
     intervals = solveinterval(pt, qt, rt, 0.0)
     if fs:
-        fs_itv = conditioning_Lasso(X[observed_selection], a_vec.reshape(-1,1)[observed_selection], b_vec.reshape(-1,1)[observed_selection], fs.lambda_, fs.M, fs.Mc, fs.sM)
+        if getattr(config, "fs_method", "lasso") == "seqfs":
+            M_z, fs_itv = fs_conditioning_interval(
+                X[observed_selection],
+                a_vec.reshape(-1, 1)[observed_selection],
+                b_vec.reshape(-1, 1)[observed_selection],
+                decomposition.etaT_y,
+                config.K,
+            )
+            if not np.array_equal(np.asarray(fs.M, dtype=int).reshape(-1), M_z):
+                fs_itv = []
+        else:
+            fs_itv = conditioning_Lasso(X[observed_selection], a_vec.reshape(-1,1)[observed_selection], b_vec.reshape(-1,1)[observed_selection], fs.lambda_, fs.M, fs.Mc, fs.sM)
         cg_oc_itv = interval_intersection(intervals, fs_itv)
         return cg_oc_itv
     return intervals
@@ -182,7 +194,18 @@ def overconditioning_intervals(
     selection_interval = sort_conditioning(curr, adapter, B, w_tilde, r_tilde, o_tilde,adapter.sorted_indices,config)
     # print("OC selec itv", selection_interval)
     # print(a_vec[observed_selection].shape)
-    fs_itv = conditioning_Lasso(Xtrain[observed_selection], a_vec[observed_selection], b_vec[observed_selection], fs.lambda_,fs.M, fs.Mc, fs.sM)
+    if getattr(config, "fs_method", "lasso") == "seqfs":
+        M_z, fs_itv = fs_conditioning_interval(
+            Xtrain[observed_selection],
+            a_vec[observed_selection],
+            b_vec[observed_selection],
+            curr,
+            config.K,
+        )
+        if not np.array_equal(np.asarray(fs.M, dtype=int).reshape(-1), M_z):
+            fs_itv = []
+    else:
+        fs_itv = conditioning_Lasso(Xtrain[observed_selection], a_vec[observed_selection], b_vec[observed_selection], fs.lambda_,fs.M, fs.Mc, fs.sM)
 
     # print('yobssub', a_vec[observed_selection] + b_vec[observed_selection]*decomposition.etaT_y)
     intervals = interval_intersection(

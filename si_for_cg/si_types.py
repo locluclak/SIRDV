@@ -28,6 +28,12 @@ class SIConfig:
     # from the tight KKT rows instead of re-solving at every `step`.  Falls
     # back to restart-and-solve on degenerate events.
     lasso_path: bool = True
+    # Feature-selection method for the conditioning event: 'lasso' (default,
+    # unchanged) or 'seqfs' (fixed-K greedy forward selection).  Under 'seqfs'
+    # the Lasso homotopy walk is bypassed and restart-and-solve is used.
+    fs_method: str = 'lasso'
+    # Fixed number of features selected by 'seqfs'; ignored under 'lasso'.
+    K: int = 5
 
 @dataclass
 class LassoInfo:

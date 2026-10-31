@@ -13,6 +13,7 @@ from .si_runner import selective_inference
 from .si_types import SIConfig, SIResult, LassoInfo
 from .si_adapter import CGSelectionAdapter, SelectionAdapter, make_eta, make_eta_cg, make_etaFS, make_eta_cgFS, make_naive_etaFS
 from .si_utils import compute_p_value, decompose_y, solve_Lasso
+from .si_seqfs import forward_selection_path
 from sklearn.linear_model import Lasso
 from scipy.linalg import block_diag
 import time
@@ -28,12 +29,16 @@ class DataSplittingTest:
             lambda_ = 10,
             split_ratio=0.3,
             random_state=None,
+            fs_method: str = "lasso",
+            K: int = 5,
     ):
         self.fraction = fraction
         self.data_valuation = data_valuation
         self.lambda_ = lambda_
         self.split_ratio = split_ratio
         self.random_state = random_state
+        self.fs_method = fs_method
+        self.K = K
     def fit(
         self,
         Xtrain: np.ndarray,
@@ -85,14 +90,17 @@ class DataSplittingTest:
 
         # print(observed_selection)
         X_pruned = Xtrain_arr[observed_selection].copy()
-        lasso = Lasso(alpha = self.lambda_ / X_pruned.shape[0], fit_intercept=False, tol = 1e-10, max_iter=100000000)
         y_pruned = ytrain_arr[observed_selection]
-        lasso.fit(X_pruned, y_pruned)
         # Sigma_arr_pruned = Sigma_arr[np.ix_(observed_selection, observed_selection)]
-        p = Xtrain_arr.shape[1]
-
-        beta_hat = lasso.coef_.reshape(p, 1)
-        M = np.nonzero(beta_hat)[0]
+        if self.fs_method == 'seqfs':
+            path, _ = forward_selection_path(y_pruned.reshape(-1), X_pruned, self.K)
+            M = np.array(sorted(path[-1]), dtype=int)
+        else:
+            lasso = Lasso(alpha = self.lambda_ / X_pruned.shape[0], fit_intercept=False, tol = 1e-10, max_iter=100000000)
+            lasso.fit(X_pruned, y_pruned)
+            p = Xtrain_arr.shape[1]
+            beta_hat = lasso.coef_.reshape(p, 1)
+            M = np.nonzero(beta_hat)[0]
 
 
         if len(observed_selection) == 0:
@@ -133,6 +141,7 @@ class DataSplittingTest:
         self.tested_index_ = tested_position
         self.M_ = np.asarray(M, dtype=int)
         self.n_selected_ = int(len(M))
+        self.intervals_ = intervals
         return self.p_value_
 
 class FSNaiveTest:
@@ -141,10 +150,14 @@ class FSNaiveTest:
             fraction,
             data_valuation,
             lambda_=10,
+            fs_method: str = "lasso",
+            K: int = 5,
             ):
         self.fraction = fraction
         self.data_valuation = data_valuation
         self.lambda_ = lambda_
+        self.fs_method = fs_method
+        self.K = K
     def fit(
         self,
         Xtrain: np.ndarray,
@@ -179,14 +192,17 @@ class FSNaiveTest:
 
         # print(observed_selection)
         X_pruned = Xtrain_arr[observed_selection].copy()
-        lasso = Lasso(alpha = self.lambda_ / X_pruned.shape[0], fit_intercept=False, tol = 1e-10, max_iter=100000000)
         y_pruned= ytrain_arr[observed_selection]
         Sigma_arr_pruned = Sigma_arr[np.ix_(observed_selection, observed_selection)]
-        lasso.fit(X_pruned, y_pruned)
-        p = Xtrain_arr.shape[1]
-
-        beta_hat = lasso.coef_.reshape(p, 1)
-        M = np.nonzero(beta_hat)[0]
+        if self.fs_method == 'seqfs':
+            path, _ = forward_selection_path(y_pruned.reshape(-1), X_pruned, self.K)
+            M = np.array(sorted(path[-1]), dtype=int)
+        else:
+            lasso = Lasso(alpha = self.lambda_ / X_pruned.shape[0], fit_intercept=False, tol = 1e-10, max_iter=100000000)
+            lasso.fit(X_pruned, y_pruned)
+            p = Xtrain_arr.shape[1]
+            beta_hat = lasso.coef_.reshape(p, 1)
+            M = np.nonzero(beta_hat)[0]
 
 
         if len(observed_selection) == 0:
@@ -228,6 +244,7 @@ class FSNaiveTest:
         self.tested_index_ = tested_position
         self.M_ = np.asarray(M, dtype=int)
         self.n_selected_ = int(len(M))
+        self.intervals_ = intervals
         return self.p_value_
 
 
@@ -317,13 +334,24 @@ class SelectiveInference:
         lambda_: float = 10.0,
         data_valuation: str = 'lava',
         lasso_path=True,
+        fs_method: str = "lasso",
+        K: int = 5,
     ):
         if data_valuation not in ['lava', 'cg-score']:
             raise ValueError("data_valuation must be 'lava' or 'cg-score'")
+        if fs_method not in ['lasso', 'seqfs']:
+            raise ValueError("fs_method must be 'lasso' or 'seqfs'")
+        if fs_method == 'seqfs' and method == 'parametric':
+            raise ValueError(
+                "method='parametric' is Lasso-only; use 'parametric_nested' "
+                "or 'overconditioning' with fs_method='seqfs'"
+            )
         self.fraction = fraction
-        self.config = SIConfig(zmin=zmin, zmax=zmax, step=step, data_valuation=data_valuation,lasso_path=lasso_path)
+        self.config = SIConfig(zmin=zmin, zmax=zmax, step=step, data_valuation=data_valuation,lasso_path=lasso_path, fs_method=fs_method, K=K)
         self.lasso = LassoInfo(lambda_=lambda_)
         self.method = method
+        self.fs_method = fs_method
+        self.K = K
 
     def fit(
         self,
@@ -372,7 +400,18 @@ class SelectiveInference:
         tp.stop(_t_sel)
         
         _t_ls = tp.start("fit: solve_Lasso (initial)")
-        M, Mc, sM = solve_Lasso(Xtrain_arr[observed_selection], ytrain_arr.reshape(-1,1)[observed_selection], self.lasso.lambda_)
+        if self.fs_method == 'seqfs':
+            # Fixed-K greedy forward selection path; the final set M is the
+            # conditioning event's feature set (Mc/sM have no FS analogue).
+            path, _ = forward_selection_path(
+                ytrain_arr[observed_selection].reshape(-1),
+                Xtrain_arr[observed_selection],
+                self.K,
+            )
+            M = np.array(sorted(path[-1]), dtype=int)
+            Mc, sM = None, None
+        else:
+            M, Mc, sM = solve_Lasso(Xtrain_arr[observed_selection], ytrain_arr.reshape(-1,1)[observed_selection], self.lasso.lambda_)
         tp.stop(_t_ls)
         # print('M', M)
         # print('y dv',ytrain_arr[observed_selection])
@@ -464,7 +503,9 @@ def SI_DV(
     method: str = "parametric",
     data_valuation: str = 'lava',
     lambda_: float = 10.0,
-    lasso_path: bool = True
+    lasso_path: bool = True,
+    fs_method: str = "lasso",
+    K: int = 5,
 ) -> float:
     """Return a selective p-value for one selected DV-score sample."""
     si = SelectiveInference(
@@ -475,7 +516,9 @@ def SI_DV(
         method=method,
         lambda_=lambda_,
         data_valuation=data_valuation,
-        lasso_path=lasso_path
+        lasso_path=lasso_path,
+        fs_method=fs_method,
+        K=K,
     ).fit(Xtrain, ytrain, Xval=Xval, yval=yval, Sigmat=Sigmat, Sigmav=Sigmav, jth=jth)
     return si.p_value_
 
