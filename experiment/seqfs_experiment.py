@@ -46,14 +46,14 @@ from si_for_cg.si_dv import SelectiveInference
 from si_for_cg.si_utils import generate, generate_contaminated_regression
 
 D = 15
-K = 5
+K = 8
 FRACTION = 0.5
 ALPHA = 0.05
 ITERS = 120
 N_VAL = 15
 CONTAMINATION = 0.5
-STD_GOOD = 1.0
-STD_BAD = 2.0
+STD_GOOD = 2.0
+STD_BAD = 4.0
 LAMBDA_ = 5.0
 
 N_LIST = [50, 100, 150, 200]
