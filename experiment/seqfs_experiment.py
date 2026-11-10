@@ -45,8 +45,8 @@ from si_for_cg import FSNaiveTest, DataSplittingTest
 from si_for_cg.si_dv import SelectiveInference
 from si_for_cg.si_utils import generate, generate_contaminated_regression
 
-D = 15
-K = 8
+D = 20
+K = 10
 FRACTION = 0.5
 ALPHA = 0.05
 ITERS = 120
