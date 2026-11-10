@@ -52,8 +52,8 @@ ALPHA = 0.05
 ITERS = 120
 N_VAL = 15
 CONTAMINATION = 0.5
-STD_GOOD = 2.0
-STD_BAD = 4.0
+STD_GOOD = 1.0
+STD_BAD = 2.0
 LAMBDA_ = 5.0
 
 N_LIST = [50, 100, 150, 200]
@@ -105,7 +105,7 @@ def data_fpr(n, seed):
 def data_tpr(beta, seed):
     X_tr, y_tr, X_val, y_val, X_test, y_test, Sigmat, Sigmav, is_clean = \
         generate_contaminated_regression(
-            n_train=100, n_val=N_VAL, n_test=0, p=D,
+            n_train=85, n_val=N_VAL, n_test=0, p=D,
             contamination=CONTAMINATION, beta_clean=beta,
             std_good=STD_GOOD, std_bad=STD_BAD, seed=seed,
         )
