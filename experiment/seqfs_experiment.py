@@ -45,15 +45,15 @@ from si_for_cg import FSNaiveTest, DataSplittingTest
 from si_for_cg.si_dv import SelectiveInference
 from si_for_cg.si_utils import generate, generate_contaminated_regression
 
-D = 20
-K = 10
+D = 15
+K = 8
 FRACTION = 0.5
 ALPHA = 0.05
 ITERS = 120
 N_VAL = 15
 CONTAMINATION = 0.5
 STD_GOOD = 1.0
-STD_BAD = 3.0
+STD_BAD = 2.0
 LAMBDA_ = 5.0
 
 N_LIST = [50, 100, 150, 200]
@@ -89,7 +89,7 @@ def run_one(tag, dv, fraction, K, Xtr, ytr, Xval, yval, Sigmat, Sigmav):
                 data_valuation=dv, lasso_path=False,
             )
         runner.fit(Xtr, ytr, Xval=Xval, yval=yval,
-                   Sigmat=Sigmat, Sigmav=Sigmav, jth=None)
+                   Sigmat=None, Sigmav=None, jth=None)
         dt = time.time() - t0
     return float(runner.p_value_), len(runner.intervals_), dt
 
