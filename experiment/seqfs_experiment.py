@@ -47,11 +47,11 @@ from si_for_cg.si_utils import generate, generate_contaminated_regression
 
 D = 15
 K = 8
-FRACTION = 0.5
+FRACTION = 0.75
 ALPHA = 0.05
 ITERS = 120
 N_VAL = 15
-CONTAMINATION = 0.5
+CONTAMINATION = 0.25
 STD_GOOD = 1.0
 STD_BAD = 2.0
 LAMBDA_ = 5.0
