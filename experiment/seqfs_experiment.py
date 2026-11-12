@@ -46,7 +46,7 @@ from si_for_cg.si_dv import SelectiveInference
 from si_for_cg.si_utils import generate, generate_contaminated_regression
 
 D = 15
-K = 5
+K = 8
 FRACTION = 0.5
 ALPHA = 0.05
 ITERS = 120
