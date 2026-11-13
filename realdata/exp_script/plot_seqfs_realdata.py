@@ -19,9 +19,11 @@ It also writes ``seqfs_pvals_long.csv`` (tidy long form) and
 and rate) and prints the summary table.
 
 The ``bonferroni`` files store RAW naive p-values; they are converted to the
-family-wise adjusted ``min(1, p * 2**P)`` (``P`` = design dimension from the
-file header) so every method is on the same ``alpha`` scale, exactly as
-``analyze_si_pvals.py`` does.
+family-wise adjusted ``min(1, p * perm(P, K))`` (``perm`` = ``P!/(P-K)!``, the
+number of ordered fixed-K forward-selection paths; ``P`` = design dimension and
+``K`` the fixed selection size, both read from the file header) so every method
+is on the same ``alpha`` scale.  This matches ``experiment/seqfs_plot.py``
+(``alpha / perm(D, K)``).
 
 Run from the repo root with the ``IS`` python (see AGENTS.md):
 
@@ -45,7 +47,7 @@ sys.path.insert(0, os.path.join(ROOT, "realdata", "exp_script"))
 
 from analyze_si_pvals import (  # noqa: E402  (path set up above)
     FNAME_RE, METHOD_ORDER, METHOD_SHORT, METHOD_COLOR,
-    load_feature_names, load_pvals, load_header_p,
+    load_feature_names, load_pvals, bonferroni_multiplier,
 )
 
 DEFAULT_RESULT_DIR = os.path.join(ROOT, "realdata", "result_seqfs")
@@ -60,14 +62,13 @@ def load_records(result_dir: str) -> pd.DataFrame:
         tag, dv, method = m["tag"], m["dv"], m["method"]
         names = load_feature_names(result_dir, tag)
 
-        # bonferroni stores RAW naive p-values -> family-wise min(1, p * 2**P).
+        # bonferroni stores RAW naive p-values -> family-wise min(1, p * perm(P, K)).
         adj = None
         if method == "bonferroni":
-            P = load_header_p(os.path.join(result_dir, f))
-            if P is None:
-                print(f"warning: no p= in header of {f}; bonferroni p-values left unadjusted")
-            else:
-                adj = float(2 ** P)
+            adj = bonferroni_multiplier(os.path.join(result_dir, f))
+            if adj is None:
+                print(f"warning: cannot derive the bonferroni multiplier from the "
+                      f"header of {f}; bonferroni p-values left unadjusted")
 
         for _it, idx, p in load_pvals(os.path.join(result_dir, f)):
             if adj is not None:

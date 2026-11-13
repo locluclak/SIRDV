@@ -15,9 +15,11 @@ The feature labels come from the ``si_features_{tag}.txt`` sidecar, so a
 p-value is always tied to its feature name (initial design order).
 
 ``bonferroni`` files hold RAW naive p-values; this script converts them to the
-family-wise adjusted p-value ``min(1, p * 2**P)`` (``P`` = design dimension, read
-from the file header), so the plain ``alpha`` level and the 0.05 reference line
-apply to every method.
+family-wise adjusted p-value ``min(1, p * m)`` where the multiplicity ``m`` is
+read from the file header (``p=...``): ``m = 2**P`` for the Lasso experiments and
+``m = perm(P, K) = P!/(P-K)!`` for the seqfs experiments (header carries
+``fs=seqfs K=...``; the number of ordered fixed-K forward-selection paths). The
+plain ``alpha`` level and the 0.05 reference line then apply to every method.
 
 Usage (run from the repo root, conda env ``IS``):
   & "C:\\Users\\Asus\\anaconda3\\envs\\IS\\python.exe" realdata/exp_script/analyze_si_pvals.py
@@ -26,6 +28,7 @@ Usage (run from the repo root, conda env ``IS``):
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import re
 import sys
@@ -86,14 +89,12 @@ def load_pvals(path: str):
 
 
 HDR_P_RE = re.compile(r"\bp=(\d+)\b")
+HDR_K_RE = re.compile(r"\bK=(\d+)\b")
+HDR_SEQFS_RE = re.compile(r"\bfs=seqfs\b")
 
 
 def load_header_p(path: str) -> int | None:
-    """Design dimension ``p`` from the file's header comment (``# ... p=<int>``).
-
-    This is the value the experiment used for the Bonferroni threshold
-    ``alpha / 2**p``, so the analyzer's adjustment matches it exactly.
-    """
+    """Design dimension ``p`` from the file's header comment (``# ... p=<int>``)."""
     with open(path, encoding="utf-8") as fh:
         for line in fh:
             if not line.startswith("#"):
@@ -102,6 +103,37 @@ def load_header_p(path: str) -> int | None:
             if mm:
                 return int(mm.group(1))
     return None
+
+
+def bonferroni_multiplier(path: str) -> float | None:
+    """Family-wise multiplicity ``m`` for the raw naive (bonferroni) p-values.
+
+    Lasso experiments: ``m = 2**P`` (all feature subsets).
+    seqfs experiments (header has ``fs=seqfs`` and ``K=``): ``m = perm(P, K)``
+    (the number of ordered fixed-K forward-selection paths).  Returns ``None``
+    when the header does not carry the fields needed.
+    """
+    p = k = None
+    seqfs = False
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            if not line.startswith("#"):
+                break
+            if HDR_SEQFS_RE.search(line):
+                seqfs = True
+            mm = HDR_P_RE.search(line)
+            if mm:
+                p = int(mm.group(1))
+            mm = HDR_K_RE.search(line)
+            if mm:
+                k = int(mm.group(1))
+    if p is None:
+        return None
+    if seqfs:
+        if k is None or k > p:
+            return None
+        return float(math.perm(p, k))
+    return float(2 ** p)
 
 
 def main() -> None:
@@ -131,16 +163,15 @@ def main() -> None:
         feat_order[tag] = [names[i] for i in sorted(names)] or feat_order.get(tag, [])
 
         # The bonferroni files store RAW naive p-values; convert them to the
-        # family-wise adjusted p-value min(1, p * 2**P), where P is the design
-        # dimension (2**P = number of selection subsets).  After this, the usual
-        # alpha level applies to every method.
+        # family-wise adjusted p-value min(1, p * m), where the multiplicity m
+        # comes from the header: 2**P (Lasso) or perm(P, K) (seqfs).  After this,
+        # the usual alpha level applies to every method.
         adj = None
         if method == "bonferroni":
-            P = load_header_p(os.path.join(args.result_dir, f))
-            if P is None:
-                print(f"warning: no p= in header of {f}; bonferroni p-values left unadjusted")
-            else:
-                adj = float(2 ** P)
+            adj = bonferroni_multiplier(os.path.join(args.result_dir, f))
+            if adj is None:
+                print(f"warning: cannot derive the bonferroni multiplier from the "
+                      f"header of {f}; bonferroni p-values left unadjusted")
 
         for it, idx, p in load_pvals(os.path.join(args.result_dir, f)):
             if adj is not None:

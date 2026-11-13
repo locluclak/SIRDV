@@ -21,8 +21,10 @@ Methods (all run with ``data_valuation`` = ``--dv`` and ``fs_method="seqfs"``):
   * datasplit          -> ``DataSplittingTest``
   * bonferroni         -> naive p-value (``FSNaiveTest``, no selection
                           correction) with the rejection threshold divided by
-                          ``2**p`` (p = number of design features); the stored
-                          p-values are the raw naive ones.
+                          ``perm(p, K) = p! / (p-K)!`` (the number of ordered
+                          fixed-K forward-selection paths; p = number of design
+                          features); the stored p-values are the raw naive ones.
+                          Matches ``experiment/seqfs_plot.py`` (alpha / perm(D, K)).
 
 Protocol (identical to the Lasso experiment)
 --------------------------------------------
@@ -59,6 +61,7 @@ import sys
 import time
 import traceback
 from datetime import datetime
+from math import perm
 
 import numpy as np
 
@@ -173,9 +176,12 @@ def run_one(dataset: str, method: str, Xs: np.ndarray, ys: np.ndarray,
     all_p: list[float] = []
     all_s2: list[float] = []
 
-    # Bonferroni: naive p-value, but the rejection threshold is alpha / 2**p
-    # (p = number of design features).  Other methods use plain alpha.
-    reject_thr = args.alpha / float(2 ** Xs.shape[1]) if method == "bonferroni" else args.alpha
+    # Bonferroni: naive p-value, but the rejection threshold is alpha / perm(p, K)
+    # (p = number of design features, K = fixed selection size); the number of
+    # ordered fixed-K forward-selection paths is perm(p, K) = p! / (p-K)!.
+    # Other methods use plain alpha.
+    reject_thr = (args.alpha / float(perm(Xs.shape[1], args.K))
+                  if method == "bonferroni" else args.alpha)
 
     log(f"START dataset={dataset} method={method} dv={args.dv} fs=seqfs K={args.K} "
         f"iters={args.iters} lambda={args.lambda_:g} fraction={args.fraction:g} "
@@ -251,7 +257,7 @@ def main() -> None:
     ap.add_argument("--fraction", type=float, default=0.5, help="DV-score selection fraction")
     ap.add_argument("--alpha", type=float, default=0.05,
                     help="significance level for the reject rate; the 'bonferroni' "
-                         "method divides it by 2**p (p = number of design features)")
+                         "method divides it by perm(p, K) = p!/(p-K)!")
     ap.add_argument("--test-size", type=float, default=0.3, help="validation fraction per iteration")
     ap.add_argument("--seed", type=int, default=0, help="base seed (iteration i uses seed+i)")
     ap.add_argument("--methods", nargs="+", default=ALL_METHODS, choices=ALL_METHODS)
