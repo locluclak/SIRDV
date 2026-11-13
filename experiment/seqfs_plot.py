@@ -14,23 +14,33 @@ Run from the repo root with the ``IS`` python (see AGENTS.md):
 import argparse
 import os
 import sys
-
+from math import perm
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import numpy as np
 
 ALPHA = 0.05
 D = 15
-
+K = 8
 N_LIST = [50, 100, 150, 200]
 BETA_LIST = [0.5, 1.0, 1.5, 2.0]
+BETA_LIST = [0.25, 0.5, 0.75, 1.0]
 FRACTION_LIST = [0.3, 0.4, 0.5, 0.6]
 
-METHODS = {
-    "naive": ("bonferroni", "tab:blue", "o"),
-    "overco": ("overconditioning", "tab:green", "o"),
-    "parame": ("parametric", "tab:red", "o"),
-    "split": ("datasplit", "tab:orange", "o"),
+# Format: key: (file_tag, label, color, marker, threshold)
+FPR_METHODS = {
+    "naive_uncorr": ("naive", "naive", "tab:purple", "o", ALPHA),
+    "naive": ("naive", "bonferroni", "tab:blue", "o", ALPHA / perm(D,K)),
+    "overco": ("overco", "overconditioning", "tab:green", "o", ALPHA),
+    "parame": ("parame", "parametric", "tab:red", "o", ALPHA),
+    "split": ("split", "datasplit", "tab:orange", "o", ALPHA),
+}
+
+TPR_METHODS = {
+    "naive": ("naive", "bonferroni", "tab:blue", "o", ALPHA / perm(D,K)),
+    "overco": ("overco", "overconditioning", "tab:green", "o", ALPHA),
+    "parame": ("parame", "parametric", "tab:red", "o", ALPHA),
+    "split": ("split", "datasplit", "tab:orange", "o", ALPHA),
 }
 
 
@@ -50,55 +60,54 @@ def read_pvalues(path):
     return pvalues
 
 
-def rejection_rate(pvalues, tag):
+def rejection_rate(pvalues, threshold):
     if not pvalues:
         return float("nan"), 0, 0
     valid = len(pvalues)
-    threshold = ALPHA / 2 ** D if tag == "naive" else ALPHA
     rejected = sum(1 for pv in pvalues if pv <= threshold)
     return rejected / valid, valid, rejected
 
 
-def table(outdir, dv, kind, values, value_fmt, value_label):
+def table(outdir, dv, kind, values, value_fmt, value_label, methods):
     print(f"\n[{dv}] {kind}")
     print(f"{value_label:>8s}  {'method':>18s}  {'valid':>6s}  "
           f"{'rejected':>8s}  {'rate':>6s}")
     results = {}
-    for tag, (label, _, _) in METHODS.items():
+    for key, (file_tag, label, _, _, threshold) in methods.items():
         rates = []
         for value in values:
             if kind == "fpr":
-                fname = f"seqfs_pv_fpr_{dv}_n{value}_{tag}.txt"
+                fname = f"seqfs_pv_fpr_{dv}_n{value}_{file_tag}.txt"
             elif kind == "tpr_beta":
-                fname = f"seqfs_pv_tpr_{dv}_beta{value}_{tag}.txt"
+                fname = f"seqfs_pv_tpr_{dv}_beta{value}_{file_tag}.txt"
             else:
-                fname = f"seqfs_pv_tpr_{dv}_frac{value}_{tag}.txt"
+                fname = f"seqfs_pv_tpr_{dv}_frac{value}_{file_tag}.txt"
             pvalues = read_pvalues(os.path.join(outdir, fname))
             if pvalues is None:
                 print(f"  {fname} not found, skipping")
                 rates.append(float("nan"))
                 continue
-            rate, valid, rejected = rejection_rate(pvalues, tag)
+            rate, valid, rejected = rejection_rate(pvalues, threshold)
             rates.append(rate)
             print(f"{value:>8{value_fmt}}  {label:>18s}  {valid:6d}  "
                   f"{rejected:8d}  {rate:6.4f}")
-        results[tag] = rates
+        results[key] = rates
     return results
 
 
-def draw(values, results, xlabel, ylabel, title, save_path):
+def draw(values, results, xlabel, ylabel, title, save_path, methods):
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=(8, 5))
-    for tag, rates in results.items():
-        label, color, marker = METHODS[tag]
+    for key, rates in results.items():
+        _, label, color, marker, _ = methods[key]
         ax.plot(values, rates, marker=marker, color=color, label=label,
                 linewidth=1.5, markersize=6)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
     ax.set_xticks(values)
-    ax.set_ylim(-0.01, 1.1)
+    ax.set_ylim(-0.05, 1.01)
     ax.legend()
     plt.tight_layout()
     plt.savefig(save_path, dpi=150)
@@ -107,7 +116,7 @@ def draw(values, results, xlabel, ylabel, title, save_path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--outdir", default="output_seqfs")
+    ap.add_argument("--outdir", default="output_seqfs8")
     ap.add_argument("--dv", default=None, choices=[None, "lava", "cg-score"])
     args = ap.parse_args()
 
@@ -115,20 +124,20 @@ def main():
     dvs = [args.dv] if args.dv else ["lava", "cg-score"]
 
     for dv in dvs:
-        fpr = table(outdir, dv, "fpr", N_LIST, "d", "n")
+        fpr = table(outdir, dv, "fpr", N_LIST, "d", "n", FPR_METHODS)
         draw(N_LIST, fpr, "Sample size (n)", "False Positive Rate",
-             f"FPR vs n under Null ({dv}, seqfs K=5)",
-             os.path.join(outdir, f"seqfs_fpr_{dv}.png"))
+             f"FPR vs n under Null ({dv}, seqfs K={K})",
+             os.path.join(outdir, f"seqfs_fpr_{dv}.png"), FPR_METHODS)
 
-        tpr_b = table(outdir, dv, "tpr_beta", BETA_LIST, ".2f", "beta")
+        tpr_b = table(outdir, dv, "tpr_beta", BETA_LIST, ".2f", "beta", TPR_METHODS)
         draw(BETA_LIST, tpr_b, "Signal strength (beta)", "True Positive Rate",
-             f"TPR vs beta ({dv}, seqfs K=5)",
-             os.path.join(outdir, f"seqfs_tpr_beta_{dv}.png"))
+             f"TPR vs beta ({dv}, seqfs K={K})",
+             os.path.join(outdir, f"seqfs_tpr_beta_{dv}.png"), TPR_METHODS)
 
-        tpr_f = table(outdir, dv, "tpr_fraction", FRACTION_LIST, ".2f", "frac")
+        tpr_f = table(outdir, dv, "tpr_fraction", FRACTION_LIST, ".2f", "frac", TPR_METHODS)
         draw(FRACTION_LIST, tpr_f, "Fraction", "True Positive Rate",
              f"TPR vs fraction ({dv}, seqfs K=5)",
-             os.path.join(outdir, f"seqfs_tpr_frac_{dv}.png"))
+             os.path.join(outdir, f"seqfs_tpr_frac_{dv}.png"), TPR_METHODS)
 
 
 if __name__ == "__main__":

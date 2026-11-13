@@ -93,7 +93,7 @@ RESULT_DIR = os.path.join(ROOT, "realdata", "result")
 LOG_PATH = os.path.join(RESULT_DIR, "si_experiment.log")
 
 ALL_METHODS = ["overconditioning", "parametric_nested", "datasplit", "bonferroni"]
-ALL_DATASETS = ["concrete", "energy", "garments", "wine"]
+ALL_DATASETS = ["concrete", "garments", "wine"]
 
 # Step 1: identifier / repeated-measures columns to drop on top of what the
 # loader already removes (``wip`` for garments, the other target for energy).
