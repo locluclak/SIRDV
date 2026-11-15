@@ -1,0 +1,13 @@
+# design column order for dataset=wine (index	name)
+# dropped columns: []
+0	fixed acidity
+1	volatile acidity
+2	citric acid
+3	residual sugar
+4	chlorides
+5	free sulfur dioxide
+6	total sulfur dioxide
+7	density
+8	pH
+9	sulphates
+10	alcohol
