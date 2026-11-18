@@ -134,7 +134,7 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    ap.add_argument("--dvs", default="lava,cg-score",
+    ap.add_argument("--dvs", default="cg-score",
                     help="comma-separated data_valuation methods")
     ap.add_argument("--methods", default="parametric_nested",
                     help="comma-separated SI methods (overconditioning, parametric_nested)")
