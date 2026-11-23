@@ -364,7 +364,7 @@ class SelectiveInference:
         jth: int | None = None,
     ) -> "SelectiveInference":
 
-        print('run alg before si')
+        # print('run alg before si')
         st = time.time()
         Xtrain_arr = np.asarray(Xtrain)
         ytrain_arr = np.asarray(ytrain).reshape(-1)
@@ -423,7 +423,7 @@ class SelectiveInference:
             raise ValueError("Empty feature selection set")
         # --- Test statistic
         p = len(M)
-        print('end', time.time() - st)
+        # print('end', time.time() - st)
         tested_position = int(np.random.choice(range(p))) if jth is None else int(jth)
 
         if self.config.data_valuation == 'lava':
